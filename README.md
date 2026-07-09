@@ -159,3 +159,10 @@ hooky-checker serve
 
 По умолчанию используется локальная SQLite база `hooky_checker.db`. Для
 PostgreSQL достаточно задать `DATABASE_URL`.
+
+## Railway
+
+Репозиторий содержит `Dockerfile` и `railway.toml`. Railway автоматически
+запускает один web service, слушает переданный `PORT` и проверяет `/health`.
+Приложению требуется PostgreSQL и переменная `DATABASE_URL`; публичный адрес
+автоматически определяется через `RAILWAY_PUBLIC_DOMAIN`.

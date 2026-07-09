@@ -72,7 +72,7 @@ def dashboard_context(session: Session) -> dict[str, Any]:
             session.scalars(select(Alert).order_by(Alert.last_seen_at.desc()).limit(200))
         ),
         "sources": list(session.scalars(select(DataSource).order_by(DataSource.name))),
-        "public_api_url": get_settings().public_api_url.rstrip("/"),
+        "public_api_url": get_settings().effective_public_api_url,
     }
 
 

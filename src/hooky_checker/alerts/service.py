@@ -31,45 +31,75 @@ def _frame(rows: list[RawSnapshot]) -> pd.DataFrame:
 
 def _results(previous: pd.DataFrame, current: pd.DataFrame) -> list[CheckResult]:
     results = find_missing_dates(previous, current)
-    dimensions = ["data_date"]
-    for candidate in ("Channel_Short_Name", "Channel"):
-        column = _column(previous, candidate)
-        if column and column in current:
-            dimensions.append(column)
-            break
-    for candidate in ("Campaign_Short_Name", "Campaign"):
-        column = _column(previous, candidate)
-        if column and column in current:
-            dimensions.append(column)
-            break
+    channel = _column(previous, "Channel_Short_Name", "Channel")
+    campaign = _column(previous, "Campaign_Short_Name", "Campaign")
+    geo = _column(previous, "CNB_geo", "Geo")
 
-    results.extend(
-        find_metric_drops(
-            previous,
-            current,
-            dimensions,
-            "_row_count",
-            relative_threshold=0.20,
-            absolute_threshold=10,
-        )
-    )
-    for canonical in ("Conversions", "Revenue"):
-        old_column = _column(previous, canonical)
-        new_column = _column(current, canonical)
-        if not old_column or not new_column:
-            continue
-        previous[canonical] = pd.to_numeric(previous[old_column], errors="coerce").fillna(0)
-        current[canonical] = pd.to_numeric(current[new_column], errors="coerce").fillna(0)
+    def available(column: str | None) -> bool:
+        return column is not None and column in current
+
+    grains = [["data_date"]]
+    if available(channel):
+        grains.append(["data_date", channel])
+    if available(channel) and available(campaign):
+        grains.append(["data_date", channel, campaign])
+    elif available(campaign):
+        grains.append(["data_date", campaign])
+    if available(geo):
+        grains.append(["data_date", geo])
+
+    metric_thresholds: dict[str, tuple[tuple[str, ...], float]] = {
+        "Impressions": (("Impressions",), 1.0),
+        "Clicks": (("Clicks",), 1.0),
+        "Cost": (("Cost", "Spend"), 0.01),
+        "Completions": (("Completions",), 1.0),
+        "Conversions": (("Conversions",), 1.0),
+        "Revenue": (("Revenue",), 0.01),
+        "All conv": (("All conv",), 1.0),
+        "Movie Ticket Sales": (("Movie Ticket Sales",), 1.0),
+        "Bowling Proceed to Payment Click": (
+            ("Bowling Proceed to Payment Click",),
+            1.0,
+        ),
+        "Private Event Request Lead Form": (
+            ("Private Event Request Lead Form",),
+            1.0,
+        ),
+        "Voucher Purchase": (("Voucher Purchase",), 1.0),
+        "IMAX Movie Ticket Purchase": (("IMAX Movie Ticket Purchase",), 1.0),
+    }
+    for dimensions in grains:
         results.extend(
             find_metric_drops(
                 previous,
                 current,
                 dimensions,
-                canonical,
-                relative_threshold=0.20,
-                absolute_threshold=10,
+                "_row_count",
+                relative_threshold=0.0,
+                absolute_threshold=1,
             )
         )
+        for canonical, (candidates, absolute_threshold) in metric_thresholds.items():
+            old_column = _column(previous, *candidates)
+            new_column = _column(current, *candidates)
+            if not old_column or not new_column:
+                continue
+            previous[canonical] = pd.to_numeric(
+                previous[old_column], errors="coerce"
+            ).fillna(0)
+            current[canonical] = pd.to_numeric(
+                current[new_column], errors="coerce"
+            ).fillna(0)
+            results.extend(
+                find_metric_drops(
+                    previous,
+                    current,
+                    dimensions,
+                    canonical,
+                    relative_threshold=0.0,
+                    absolute_threshold=absolute_threshold,
+                )
+            )
     return results
 
 

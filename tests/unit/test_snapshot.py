@@ -3,7 +3,14 @@ from datetime import date
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
-from hooky_checker.db.models import Alert, AlertStatus, Base, DataSource, RawSnapshot
+from hooky_checker.db.models import (
+    Alert,
+    AlertEvent,
+    AlertStatus,
+    Base,
+    DataSource,
+    RawSnapshot,
+)
 from hooky_checker.pipeline.snapshot import dataframe_from_values, publish_push_snapshot
 
 
@@ -59,3 +66,54 @@ def test_missing_date_creates_alert_and_normal_data_starts_recovery() -> None:
         publish_push_snapshot(session, source.id, normal, date(2026, 7, 10))
         session.flush()
         assert alert.status == AlertStatus.RECOVERED
+
+
+def test_two_missing_conversions_create_alert() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        source = DataSource(name="Conversion regression", worksheet_name="All_Data")
+        session.add(source)
+        session.flush()
+        previous = [
+            ["Date", "Channel_Short_Name", "Conversions", "Revenue"],
+            ["2026-07-01", "Search", 100, 1000],
+        ]
+        current = [
+            ["Date", "Channel_Short_Name", "Conversions", "Revenue"],
+            ["2026-07-01", "Search", 98, 1000],
+        ]
+        publish_push_snapshot(session, source.id, previous, date(2026, 7, 9))
+        publish_push_snapshot(session, source.id, current, date(2026, 7, 10))
+        alert = session.scalar(select(Alert).where(Alert.check_type == "Conversions_drop"))
+
+        assert alert is not None
+        assert alert.status == AlertStatus.OPEN
+        event = session.scalar(select(AlertEvent).where(AlertEvent.alert_id == alert.id))
+        assert event is not None
+        assert event.expected == 100
+        assert event.actual == 98
+
+
+def test_one_missing_row_and_one_dollar_cost_create_alerts() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        source = DataSource(name="Strict regression", worksheet_name="All_Data")
+        session.add(source)
+        session.flush()
+        previous = [
+            ["Date", "Channel_Short_Name", "Campaign_Short_Name", "Cost"],
+            ["2026-07-01", "Search", "Brand", 50],
+            ["2026-07-01", "Search", "Brand", 1],
+        ]
+        current = [
+            ["Date", "Channel_Short_Name", "Campaign_Short_Name", "Cost"],
+            ["2026-07-01", "Search", "Brand", 50],
+        ]
+        publish_push_snapshot(session, source.id, previous, date(2026, 7, 9))
+        publish_push_snapshot(session, source.id, current, date(2026, 7, 10))
+
+        check_types = set(session.scalars(select(Alert.check_type)))
+        assert "_row_count_drop" in check_types
+        assert "Cost_drop" in check_types

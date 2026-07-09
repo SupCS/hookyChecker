@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hooky-checker"
+version = "0.1.0"
+description = "Data quality monitoring for a Google Sheets reporting source"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.116,<1",
+  "jinja2>=3.1,<4",
+  "pandas>=2.2,<3",
+  "psycopg[binary]>=3.2,<4",
+  "pydantic-settings>=2.7,<3",
+  "sqlalchemy>=2.0,<3",
+  "python-multipart>=0.0.20,<1",
+  "uvicorn>=0.34,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "mypy>=1.14,<2",
+  "pytest>=8.3,<9",
+  "ruff>=0.9,<1",
+]
+
+[project.scripts]
+hooky-checker = "hooky_checker.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hooky_checker"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

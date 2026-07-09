@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hooky Checker</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b1020; --card:#151c30; --line:#29324b;
+      --muted:#9da8c2; --accent:#75a7ff; --danger:#ff6b7d; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:#edf2ff;
+      font:15px/1.5 Inter,system-ui,sans-serif; }
+    main { max-width:1180px; margin:auto; padding:36px 24px; }
+    h1 { margin:0; font-size:32px; } h2 { margin-top:40px; }
+    .muted { color:var(--muted); }
+    .metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin:28px 0; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:14px;
+      padding:20px; }
+    .metric strong { display:block; font-size:28px; margin-top:6px; }
+    form { display:grid; grid-template-columns:2fr 2fr auto; gap:12px; align-items:end; }
+    label { color:var(--muted); } input { display:block; width:100%; margin-top:6px;
+      padding:11px 12px; border-radius:8px; border:1px solid var(--line);
+      background:#0d1426; color:white; }
+    button { padding:11px 18px; border:0; border-radius:8px; background:var(--accent);
+      color:#071126; font-weight:700; cursor:pointer; }
+    table { width:100%; border-collapse:collapse; }
+    th,td { padding:12px; border-bottom:1px solid var(--line); text-align:left; }
+    th { color:var(--muted); font-weight:500; }
+    code,pre { background:#080d1a; border:1px solid var(--line); border-radius:8px; }
+    pre { padding:14px; white-space:pre-wrap; overflow-wrap:anywhere; }
+    .success { border-color:#347f66; } .error { color:var(--danger); }
+    @media(max-width:760px) { .metrics,form { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body><main>
+  <h1>Hooky Checker</h1>
+  <div class="muted">Мониторинг качества данных из Google Sheets</div>
+
+  <section class="metrics">
+    <div class="card metric"><span class="muted">Активные алерты</span>
+      <strong>{{ active_count }}</strong></div>
+    <div class="card metric"><span class="muted">Критические</span>
+      <strong>{{ critical_count }}</strong></div>
+    <div class="card metric"><span class="muted">Последний snapshot</span>
+      <strong>{{ latest_run.snapshot_date if latest_run else "—" }}</strong></div>
+  </section>
+
+  <h2>Источники</h2>
+  <div class="card">
+    <form method="post" action="/sources">
+      <label>Название проекта<input name="name" required placeholder="Hooky Entertainment"></label>
+      <label>Вкладка<input name="worksheet_name" required value="All_Data"></label>
+      <button type="submit">Добавить</button>
+    </form>
+    {% if source_error %}<p class="error">{{ source_error }}</p>{% endif %}
+  </div>
+
+  {% if new_source %}
+  <div class="card success" style="margin-top:16px">
+    <strong>Источник {{ new_source.name }} создан</strong>
+    <p>Скопируйте значения сейчас: токен повторно не показывается.</p>
+    <pre>API_URL = '{{ public_api_url }}/api/v1/snapshots'
+INGEST_TOKEN = '{{ new_token }}'
+WORKSHEET_NAME = '{{ new_source.worksheet_name }}'</pre>
+    <p class="muted">Вставьте их в apps_script/Code.gs.</p>
+  </div>
+  {% endif %}
+
+  {% if sources %}
+  <div class="card" style="margin-top:16px">
+    <table><thead><tr><th>Проект</th><th>Вкладка</th><th>Статус</th></tr></thead><tbody>
+    {% for source in sources %}<tr><td>{{ source.name }}</td>
+      <td>{{ source.worksheet_name }}</td><td>{{ "Активен" if source.enabled else "Выключен" }}</td></tr>
+    {% endfor %}
+    </tbody></table>
+  </div>
+  {% endif %}
+
+  <h2>Алерты</h2>
+  <div class="card">
+  {% if alerts %}
+    <table><thead><tr><th>Статус</th><th>Severity</th><th>Проверка</th><th>Описание</th></tr></thead>
+    <tbody>{% for alert in alerts %}<tr><td>{{ alert.status.value }}</td>
+      <td>{{ alert.severity }}</td><td>{{ alert.check_type }}</td><td>{{ alert.title }}</td></tr>
+    {% endfor %}</tbody></table>
+  {% else %}<span class="muted">Алертов пока нет.</span>{% endif %}
+  </div>
+</main></body>
+</html>

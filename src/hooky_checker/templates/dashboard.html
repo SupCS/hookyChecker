@@ -72,7 +72,7 @@ WORKSHEET_NAME = '{{ new_source.worksheet_name }}'</pre>
   {% if sources %}
   <div class="card" style="margin-top:16px">
     <table><thead><tr><th>Проект</th><th>Вкладка</th><th>Статус</th><th></th></tr></thead><tbody>
-    {% for source in sources %}<tr><td>{{ source.name }}</td>
+    {% for source in sources %}<tr><td><a href="/sources/{{ source.id }}">{{ source.name }}</a></td>
       <td>{{ source.worksheet_name }}</td><td>{{ "Активен" if source.enabled else "Выключен" }}</td>
       <td><form method="post" action="/sources/{{ source.id }}/rotate-token"
         onsubmit="return confirm('Старый токен перестанет работать. Продолжить?')">

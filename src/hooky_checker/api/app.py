@@ -12,7 +12,14 @@ from starlette.responses import HTMLResponse
 from starlette.templating import Jinja2Templates
 
 from hooky_checker.config import get_settings
-from hooky_checker.db.models import Alert, AlertStatus, DataSource, IngestionRun, RunStatus
+from hooky_checker.db.models import (
+    Alert,
+    AlertStatus,
+    DataSource,
+    IngestionRun,
+    RawSnapshot,
+    RunStatus,
+)
 from hooky_checker.db.session import SessionFactory, create_schema
 from hooky_checker.pipeline import publish_push_snapshot
 from hooky_checker.security import generate_ingest_token, hash_ingest_token
@@ -154,6 +161,50 @@ def rotate_source_token(
         request=request,
         name="dashboard.html",
         context=context,
+    )
+
+
+@app.get("/sources/{source_id}", response_class=HTMLResponse)
+def source_detail(
+    source_id: str,
+    request: Request,
+    session: Annotated[Session, Depends(get_session)],
+) -> HTMLResponse:
+    source = session.get(DataSource, source_id)
+    if source is None:
+        raise HTTPException(status_code=404, detail="Source not found")
+    runs = list(
+        session.scalars(
+            select(IngestionRun)
+            .where(IngestionRun.source_id == source.id)
+            .order_by(IngestionRun.started_at.desc())
+            .limit(30)
+        )
+    )
+    latest_run = next((run for run in runs if run.status == RunStatus.SUCCESS), None)
+    raw_rows = (
+        list(
+            session.scalars(
+                select(RawSnapshot)
+                .where(RawSnapshot.run_id == latest_run.id)
+                .order_by(RawSnapshot.row_number)
+                .limit(100)
+            )
+        )
+        if latest_run
+        else []
+    )
+    columns = list(raw_rows[0].payload) if raw_rows else []
+    return templates.TemplateResponse(
+        request=request,
+        name="source_detail.html",
+        context={
+            "source": source,
+            "runs": runs,
+            "latest_run": latest_run,
+            "raw_rows": raw_rows,
+            "columns": columns,
+        },
     )
 
 

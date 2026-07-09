@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ source.name }} — Hooky Checker</title>
+  <style>
+    :root { color-scheme:dark; --bg:#0b1020; --card:#151c30; --line:#29324b;
+      --muted:#9da8c2; --accent:#75a7ff; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:#edf2ff;
+      font:15px/1.5 Inter,system-ui,sans-serif; }
+    main { max-width:1400px; margin:auto; padding:36px 24px; }
+    a { color:var(--accent); } h1 { margin-bottom:4px; }
+    .muted { color:var(--muted); }
+    .card { margin-top:20px; background:var(--card); border:1px solid var(--line);
+      border-radius:14px; padding:20px; overflow:auto; }
+    .metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+    .metric strong { display:block; font-size:25px; margin-top:5px; }
+    table { width:100%; border-collapse:collapse; white-space:nowrap; }
+    th,td { padding:10px 12px; border-bottom:1px solid var(--line); text-align:left; }
+    th { color:var(--muted); position:sticky; top:0; background:var(--card); }
+    code { font-size:12px; }
+    @media(max-width:760px) { .metrics { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body><main>
+  <a href="/">← Все проекты</a>
+  <h1>{{ source.name }}</h1>
+  <div class="muted">Вкладка {{ source.worksheet_name }}</div>
+
+  <section class="metrics">
+    <div class="card metric"><span class="muted">Последний snapshot</span>
+      <strong>{{ latest_run.snapshot_date if latest_run else "—" }}</strong></div>
+    <div class="card metric"><span class="muted">Строк</span>
+      <strong>{{ latest_run.source_row_count if latest_run else 0 }}</strong></div>
+    <div class="card metric"><span class="muted">Статус</span>
+      <strong>{{ latest_run.status.value if latest_run else "Нет данных" }}</strong></div>
+  </section>
+
+  <h2>История snapshots</h2>
+  <div class="card">
+  {% if runs %}
+    <table><thead><tr><th>Дата снимка</th><th>Статус</th><th>Строк</th>
+      <th>Получен</th><th>Checksum</th></tr></thead><tbody>
+    {% for run in runs %}<tr><td>{{ run.snapshot_date }}</td><td>{{ run.status.value }}</td>
+      <td>{{ run.source_row_count }}</td><td>{{ run.finished_at or run.started_at }}</td>
+      <td><code>{{ run.checksum[:12] if run.checksum else "—" }}</code></td></tr>
+    {% endfor %}</tbody></table>
+  {% else %}<span class="muted">Snapshots ещё не поступали.</span>{% endif %}
+  </div>
+
+  <h2>Preview последнего snapshot</h2>
+  <div class="card">
+  {% if raw_rows %}
+    <div class="muted">Показаны первые {{ raw_rows|length }} строк.</div>
+    <table><thead><tr><th>№</th>{% for column in columns %}<th>{{ column }}</th>{% endfor %}
+    </tr></thead><tbody>
+    {% for row in raw_rows %}<tr><td>{{ row.row_number }}</td>
+      {% for column in columns %}<td>{{ row.payload.get(column, "") }}</td>{% endfor %}</tr>
+    {% endfor %}</tbody></table>
+  {% else %}<span class="muted">В последнем snapshot нет строк.</span>{% endif %}
+  </div>
+</main></body>
+</html>

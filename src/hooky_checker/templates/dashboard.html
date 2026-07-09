@@ -93,11 +93,26 @@ WORKSHEET_NAME = '{{ new_source.worksheet_name }}'</pre>
       <td>{{ alert.dimensions.get("data_date", "—") }}</td>
       <td>{{ alert.dimensions.get("Channel_Short_Name", alert.dimensions.get("Channel", "—")) }}</td>
       <td>{{ alert.dimensions.get("Campaign_Short_Name", alert.dimensions.get("Campaign", "—")) }}</td>
-      <td>{{ event.expected if event and event.expected is not none else "—" }}</td>
-      <td>{{ event.actual if event and event.actual is not none else "—" }}</td>
+      <td>{% if alert.check_type == "data_regression" %}см. детали{% else %}
+        {{ event.expected if event and event.expected is not none else "—" }}{% endif %}</td>
+      <td>{% if alert.check_type == "data_regression" %}см. детали{% else %}
+        {{ event.actual if event and event.actual is not none else "—" }}{% endif %}</td>
       <td><a href="/alerts/{{ alert.id }}">{{ alert.title }} →</a></td></tr>
     {% endfor %}</tbody></table>
   {% else %}<span class="muted">Алертов пока нет.</span>{% endif %}
   </div>
+
+  {% if historical_alert_rows %}
+  <details style="margin-top:24px"><summary class="muted">История восстановленных алертов
+    ({{ historical_alert_rows|length }})</summary>
+    <div class="card"><table><thead><tr><th>Статус</th><th>Проверка</th>
+      <th>Дата</th><th>Описание</th></tr></thead><tbody>
+    {% for item in historical_alert_rows %}<tr><td>{{ item.alert.status.value }}</td>
+      <td><a href="/alerts/{{ item.alert.id }}">{{ item.alert.check_type }}</a></td>
+      <td>{{ item.alert.dimensions.get("data_date", "—") }}</td>
+      <td><a href="/alerts/{{ item.alert.id }}">{{ item.alert.title }} →</a></td></tr>
+    {% endfor %}</tbody></table></div>
+  </details>
+  {% endif %}
 </main></body>
 </html>

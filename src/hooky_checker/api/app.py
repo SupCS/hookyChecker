@@ -1,6 +1,6 @@
 import secrets
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Annotated, Any
 from urllib.parse import urlencode
@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from starlette.responses import HTMLResponse
+from starlette.responses import HTMLResponse, RedirectResponse
 from starlette.templating import Jinja2Templates
 
 from hooky_checker.config import get_settings
@@ -77,8 +77,9 @@ def dashboard_context(session: Session) -> dict[str, Any]:
             Alert.severity == "CRITICAL",
         )
     )
-    alerts = list(session.scalars(select(Alert).order_by(Alert.last_seen_at.desc()).limit(200)))
-    alert_rows = []
+    alerts = list(session.scalars(select(Alert).order_by(Alert.last_seen_at.desc()).limit(300)))
+    active_alert_rows = []
+    historical_alert_rows = []
     for alert in alerts:
         latest_event = session.scalar(
             select(AlertEvent)
@@ -86,12 +87,17 @@ def dashboard_context(session: Session) -> dict[str, Any]:
             .order_by(AlertEvent.created_at.desc())
             .limit(1)
         )
-        alert_rows.append({"alert": alert, "event": latest_event})
+        row = {"alert": alert, "event": latest_event}
+        if alert.status in (AlertStatus.OPEN, AlertStatus.ONGOING):
+            active_alert_rows.append(row)
+        else:
+            historical_alert_rows.append(row)
     return {
         "latest_run": latest_run,
         "active_count": active_count or 0,
         "critical_count": critical_count or 0,
-        "alert_rows": alert_rows,
+        "alert_rows": active_alert_rows,
+        "historical_alert_rows": historical_alert_rows,
         "sources": list(session.scalars(select(DataSource).order_by(DataSource.name))),
         "public_api_url": get_settings().effective_public_api_url,
     }
@@ -344,7 +350,14 @@ def alert_detail(
     )
     all_rows = previous_rows or current_rows
     columns = list(all_rows[0].payload) if all_rows else []
-    metric = alert.check_type.removesuffix("_drop")
+    changes = (
+        latest_event.evidence.get("changes", [])
+        if latest_event and latest_event.evidence
+        else []
+    )
+    metrics = [change["metric"] for change in changes]
+    if not metrics:
+        metrics = [alert.check_type.removesuffix("_drop")]
     previous_by_number = {row.row_number: row for row in previous_rows}
     current_by_number = {row.row_number: row for row in current_rows}
     changed_row_numbers = {
@@ -352,8 +365,11 @@ def alert_detail(
         for row_number in previous_by_number.keys() | current_by_number.keys()
         if previous_by_number.get(row_number) is None
         or current_by_number.get(row_number) is None
-        or previous_by_number[row_number].payload.get(metric)
-        != current_by_number[row_number].payload.get(metric)
+        or any(
+            previous_by_number[row_number].payload.get(metric)
+            != current_by_number[row_number].payload.get(metric)
+            for metric in metrics
+        )
     }
     return templates.TemplateResponse(
         request=request,
@@ -368,10 +384,49 @@ def alert_detail(
             "previous_rows": previous_rows,
             "current_rows": current_rows,
             "columns": columns,
-            "metric": metric,
+            "metrics": metrics,
+            "changes": changes,
             "changed_row_numbers": changed_row_numbers,
         },
     )
+
+
+@app.post("/alerts/{alert_id}/resolve")
+def resolve_alert(
+    alert_id: str,
+    session: Annotated[Session, Depends(get_session)],
+    reason: Annotated[str, Form()],
+    resolved_by: Annotated[str, Form()] = "Manual",
+) -> RedirectResponse:
+    alert = session.get(Alert, alert_id)
+    if alert is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    clean_reason = reason.strip()
+    if not clean_reason:
+        raise HTTPException(status_code=422, detail="Resolution reason is required")
+    latest_event = session.scalar(
+        select(AlertEvent)
+        .where(AlertEvent.alert_id == alert.id)
+        .order_by(AlertEvent.created_at.desc())
+        .limit(1)
+    )
+    alert.status = AlertStatus.RESOLVED
+    alert.recovery_count = 2
+    alert.acknowledged_at = datetime.now(UTC)
+    alert.acknowledged_by = resolved_by.strip() or "Manual"
+    session.add(
+        AlertEvent(
+            alert_id=alert.id,
+            run_id=latest_event.run_id if latest_event else None,
+            status=AlertStatus.RESOLVED,
+            evidence={
+                "resolution_type": "accepted_as_expected",
+                "reason": clean_reason,
+                "resolved_by": alert.acknowledged_by,
+            },
+        )
+    )
+    return RedirectResponse(url=f"/alerts/{alert.id}", status_code=303)
 
 
 @app.post("/api/v1/snapshots", status_code=status.HTTP_201_CREATED)

@@ -85,14 +85,20 @@ def test_two_missing_conversions_create_alert() -> None:
         ]
         publish_push_snapshot(session, source.id, previous, date(2026, 7, 9))
         publish_push_snapshot(session, source.id, current, date(2026, 7, 10))
-        alert = session.scalar(select(Alert).where(Alert.check_type == "Conversions_drop"))
+        alert = session.scalar(select(Alert).where(Alert.check_type == "data_regression"))
 
         assert alert is not None
         assert alert.status == AlertStatus.OPEN
         event = session.scalar(select(AlertEvent).where(AlertEvent.alert_id == alert.id))
         assert event is not None
-        assert event.expected == 100
-        assert event.actual == 98
+        assert event.evidence["changes"] == [
+            {
+                "metric": "Conversions",
+                "expected": "100",
+                "actual": "98",
+                "delta": "-2",
+            }
+        ]
 
 
 def test_one_missing_row_and_one_dollar_cost_create_alerts() -> None:
@@ -114,6 +120,13 @@ def test_one_missing_row_and_one_dollar_cost_create_alerts() -> None:
         publish_push_snapshot(session, source.id, previous, date(2026, 7, 9))
         publish_push_snapshot(session, source.id, current, date(2026, 7, 10))
 
-        check_types = set(session.scalars(select(Alert.check_type)))
-        assert "_row_count_drop" in check_types
-        assert "Cost_drop" in check_types
+        alerts = list(
+            session.scalars(select(Alert).where(Alert.check_type == "data_regression"))
+        )
+        assert len(alerts) == 1
+        event = session.scalar(select(AlertEvent).where(AlertEvent.alert_id == alerts[0].id))
+        assert event is not None
+        assert {change["metric"] for change in event.evidence["changes"]} == {
+            "row_count",
+            "Cost",
+        }

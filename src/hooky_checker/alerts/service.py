@@ -1,6 +1,7 @@
 import hashlib
 import json
 from datetime import UTC, datetime
+from decimal import Decimal
 
 import pandas as pd
 from sqlalchemy import select
@@ -30,23 +31,31 @@ def _frame(rows: list[RawSnapshot]) -> pd.DataFrame:
 
 
 def _results(previous: pd.DataFrame, current: pd.DataFrame) -> list[CheckResult]:
-    results = find_missing_dates(previous, current)
-    channel = _column(previous, "Channel_Short_Name", "Channel")
-    campaign = _column(previous, "Campaign_Short_Name", "Campaign")
-    geo = _column(previous, "CNB_geo", "Geo")
-
+    missing_dates = find_missing_dates(previous, current)
+    missing_date_values = {result.dimensions["data_date"] for result in missing_dates}
     def available(column: str | None) -> bool:
         return column is not None and column in current
 
-    grains = [["data_date"]]
-    if available(channel):
-        grains.append(["data_date", channel])
-    if available(channel) and available(campaign):
-        grains.append(["data_date", channel, campaign])
-    elif available(campaign):
-        grains.append(["data_date", campaign])
-    if available(geo):
-        grains.append(["data_date", geo])
+    dimensions = ["data_date"]
+    dimension_candidates = (
+        ("Tactic",),
+        ("Channel_Short_Name", "Channel"),
+        ("Level 1 Naming",),
+        ("Campaign_Short_Name", "Campaign"),
+        ("Creative",),
+        ("CNB_audience",),
+        ("CNB_geo", "Geo"),
+        ("CNB_language",),
+        ("CNB_message",),
+        ("CNB_creative_tag",),
+        ("CNB_keyword_group",),
+        ("CNB_flight_identifier",),
+        ("CNB_other",),
+    )
+    for candidates in dimension_candidates:
+        column = _column(previous, *candidates)
+        if available(column) and column not in dimensions:
+            dimensions.append(column)
 
     metric_thresholds: dict[str, tuple[tuple[str, ...], float]] = {
         "Impressions": (("Impressions",), 1.0),
@@ -68,39 +77,71 @@ def _results(previous: pd.DataFrame, current: pd.DataFrame) -> list[CheckResult]
         "Voucher Purchase": (("Voucher Purchase",), 1.0),
         "IMAX Movie Ticket Purchase": (("IMAX Movie Ticket Purchase",), 1.0),
     }
-    for dimensions in grains:
-        results.extend(
+    raw_results = find_metric_drops(
+        previous,
+        current,
+        dimensions,
+        "_row_count",
+        relative_threshold=0.0,
+        absolute_threshold=1,
+    )
+    for canonical, (candidates, absolute_threshold) in metric_thresholds.items():
+        old_column = _column(previous, *candidates)
+        new_column = _column(current, *candidates)
+        if not old_column or not new_column:
+            continue
+        previous[canonical] = pd.to_numeric(
+            previous[old_column], errors="coerce"
+        ).fillna(0)
+        current[canonical] = pd.to_numeric(current[new_column], errors="coerce").fillna(
+            0
+        )
+        raw_results.extend(
             find_metric_drops(
                 previous,
                 current,
                 dimensions,
-                "_row_count",
+                canonical,
                 relative_threshold=0.0,
-                absolute_threshold=1,
+                absolute_threshold=absolute_threshold,
             )
         )
-        for canonical, (candidates, absolute_threshold) in metric_thresholds.items():
-            old_column = _column(previous, *candidates)
-            new_column = _column(current, *candidates)
-            if not old_column or not new_column:
-                continue
-            previous[canonical] = pd.to_numeric(
-                previous[old_column], errors="coerce"
-            ).fillna(0)
-            current[canonical] = pd.to_numeric(
-                current[new_column], errors="coerce"
-            ).fillna(0)
-            results.extend(
-                find_metric_drops(
-                    previous,
-                    current,
-                    dimensions,
-                    canonical,
-                    relative_threshold=0.0,
-                    absolute_threshold=absolute_threshold,
-                )
+
+    grouped: dict[str, list[CheckResult]] = {}
+    for result in raw_results:
+        if result.dimensions.get("data_date") in missing_date_values:
+            continue
+        key = json.dumps(result.dimensions, sort_keys=True, ensure_ascii=False)
+        grouped.setdefault(key, []).append(result)
+
+    incidents = list(missing_dates)
+    for changes in grouped.values():
+        metrics = [
+            change.check_type.removesuffix("_drop").removeprefix("_")
+            for change in changes
+        ]
+        incidents.append(
+            CheckResult(
+                check_type="data_regression",
+                severity="HIGH",
+                dimensions=changes[0].dimensions,
+                expected=Decimal(len(changes)),
+                actual=Decimal(0),
+                title=f"Снижение метрик: {', '.join(metrics)}",
+                evidence={
+                    "changes": [
+                        {
+                            "metric": metric,
+                            "expected": str(change.expected),
+                            "actual": str(change.actual),
+                            "delta": str(change.actual - change.expected),
+                        }
+                        for metric, change in zip(metrics, changes, strict=True)
+                    ]
+                },
             )
-    return results
+        )
+    return incidents
 
 
 def _alert_key(source_id: str, result: CheckResult) -> str:

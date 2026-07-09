@@ -26,6 +26,12 @@
     .problem { background:var(--badbg); color:#ffdce2; font-weight:700; }
     .row-number { color:var(--accent); font-weight:700; }
     .compare { display:grid; grid-template-columns:1fr; gap:20px; }
+    form { display:grid; grid-template-columns:1fr 1fr auto; gap:12px; align-items:end; }
+    label { color:var(--muted); }
+    input { display:block; width:100%; margin-top:5px; padding:9px; border-radius:7px;
+      border:1px solid var(--line); background:#0b1020; color:white; }
+    button { border:0; border-radius:7px; background:var(--accent); color:#071126;
+      padding:10px 15px; font-weight:700; cursor:pointer; }
     @media(max-width:800px) { .metrics { grid-template-columns:1fr 1fr; } }
   </style>
 </head>
@@ -43,14 +49,39 @@
     <div class="card metric"><span class="muted">Изменение</span>
       <strong>{% if event and event.expected is not none and event.actual is not none %}
         {{ event.actual - event.expected }}{% else %}—{% endif %}</strong></div>
-    <div class="card metric"><span class="muted">Метрика</span><strong>{{ metric }}</strong></div>
+    <div class="card metric"><span class="muted">Метрики</span>
+      <strong>{{ metrics|join(", ") }}</strong></div>
   </section>
+
+  {% if changes %}
+  <div class="card"><table><thead><tr><th>Метрика</th><th>Было</th><th>Стало</th>
+    <th>Delta</th></tr></thead><tbody>{% for change in changes %}<tr>
+    <td class="problem">{{ change.metric }}</td><td>{{ change.expected }}</td>
+    <td>{{ change.actual }}</td><td>{{ change.delta }}</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% endif %}
 
   <div class="dimensions">
     {% for key, value in alert.dimensions.items() %}{% if key != "source_id" %}
       <span class="tag"><span class="muted">{{ key }}:</span> {{ value }}</span>
     {% endif %}{% endfor %}
   </div>
+
+  {% if alert.status.value in ["OPEN", "ONGOING", "RECOVERED"] %}
+  <div class="card">
+    <strong>Изменение ожидаемое?</strong>
+    <p class="muted">Закройте incident вручную и зафиксируйте причину принятия данных.</p>
+    <form method="post" action="/alerts/{{ alert.id }}/resolve">
+      <label>Комментарий<input name="reason" required
+        placeholder="Например: корректировка подтверждена клиентом"></label>
+      <label>Кто закрыл<input name="resolved_by" value="Manual"></label>
+      <button type="submit">Принять и закрыть</button>
+    </form>
+  </div>
+  {% elif alert.acknowledged_at %}
+  <div class="card"><strong>Закрыто вручную</strong>
+    <div class="muted">{{ alert.acknowledged_by }} · {{ alert.acknowledged_at }}</div></div>
+  {% endif %}
 
   <div class="compare">
     <section>
@@ -59,10 +90,10 @@
       {% if previous_rows %}
         <div class="muted">Номер — это строка исходной Google Sheet на момент snapshot.</div>
         <table><thead><tr><th>Строка</th>{% for column in columns %}
-          <th class="{% if column == metric %}problem{% endif %}">{{ column }}</th>{% endfor %}
+          <th class="{% if column in metrics %}problem{% endif %}">{{ column }}</th>{% endfor %}
         </tr></thead><tbody>{% for row in previous_rows %}<tr>
           <td class="row-number">{{ row.row_number }}</td>{% for column in columns %}
-          <td class="{% if column == metric and row.row_number in changed_row_numbers %}problem{% endif %}">
+          <td class="{% if column in metrics and row.row_number in changed_row_numbers %}problem{% endif %}">
             {{ row.payload.get(column, "") }}</td>
           {% endfor %}</tr>{% endfor %}</tbody></table>
       {% else %}<span class="muted">Подходящих строк нет.</span>{% endif %}
@@ -75,10 +106,10 @@
       {% if current_rows %}
         <div class="muted">Показаны строки, соответствующие dimensions алерта.</div>
         <table><thead><tr><th>Строка</th>{% for column in columns %}
-          <th class="{% if column == metric %}problem{% endif %}">{{ column }}</th>{% endfor %}
+          <th class="{% if column in metrics %}problem{% endif %}">{{ column }}</th>{% endfor %}
         </tr></thead><tbody>{% for row in current_rows %}<tr>
           <td class="row-number">{{ row.row_number }}</td>{% for column in columns %}
-          <td class="{% if column == metric and row.row_number in changed_row_numbers %}problem{% endif %}">
+          <td class="{% if column in metrics and row.row_number in changed_row_numbers %}problem{% endif %}">
             {{ row.payload.get(column, "") }}</td>
           {% endfor %}</tr>{% endfor %}</tbody></table>
       {% else %}<span class="muted">Строки исчезли из текущего snapshot.</span>{% endif %}
@@ -88,10 +119,11 @@
 
   <h2>История алерта</h2>
   <div class="card"><table><thead><tr><th>Время</th><th>Статус</th><th>Было</th>
-    <th>Стало</th></tr></thead><tbody>{% for item in events %}<tr>
+    <th>Стало</th><th>Комментарий</th></tr></thead><tbody>{% for item in events %}<tr>
     <td>{{ item.created_at }}</td><td>{{ item.status.value }}</td>
     <td>{{ item.expected if item.expected is not none else "—" }}</td>
-    <td>{{ item.actual if item.actual is not none else "—" }}</td></tr>{% endfor %}
+    <td>{{ item.actual if item.actual is not none else "—" }}</td>
+    <td>{{ item.evidence.get("reason", "—") }}</td></tr>{% endfor %}
   </tbody></table></div>
 </main></body>
 </html>

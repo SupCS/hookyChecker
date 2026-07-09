@@ -20,6 +20,14 @@
     table { width:100%; border-collapse:collapse; white-space:nowrap; }
     th,td { padding:10px 12px; border-bottom:1px solid var(--line); text-align:left; }
     th { color:var(--muted); position:sticky; top:0; background:var(--card); }
+    .filters th { top:41px; padding:6px; }
+    .filters input { min-width:140px; width:100%; padding:7px; border:1px solid var(--line);
+      border-radius:6px; background:#0b1020; color:#edf2ff; }
+    .toolbar { display:flex; gap:12px; align-items:center; justify-content:space-between;
+      margin-bottom:12px; }
+    button,.button { border:0; border-radius:7px; background:var(--accent); color:#071126;
+      padding:8px 13px; font-weight:700; cursor:pointer; text-decoration:none; }
+    select { padding:7px; background:#0b1020; color:white; border:1px solid var(--line); }
     code { font-size:12px; }
     @media(max-width:760px) { .metrics { grid-template-columns:1fr; } }
   </style>
@@ -52,13 +60,35 @@
 
   <h2>Preview последнего snapshot</h2>
   <div class="card">
-  {% if raw_rows %}
-    <div class="muted">Показаны первые {{ raw_rows|length }} строк.</div>
+  {% if columns %}
+    <form method="get">
+    <div class="toolbar">
+      <span class="muted">Найдено строк: {{ filtered_count }} · страница {{ page }} из {{ max_page }}</span>
+      <span><label>На странице
+        <select name="page_size">{% for size in [50, 100, 250, 500] %}
+          <option value="{{ size }}" {% if page_size == size %}selected{% endif %}>{{ size }}</option>
+        {% endfor %}</select></label>
+        <button type="submit">Применить фильтры</button>
+        <a class="button" href="/sources/{{ source.id }}">Сбросить</a>
+      </span>
+    </div>
     <table><thead><tr><th>№</th>{% for column in columns %}<th>{{ column }}</th>{% endfor %}
+    </tr><tr class="filters"><th></th>{% for column in columns %}
+      <th><input name="f{{ loop.index0 }}" value="{{ filters.get(column, '') }}"
+        placeholder="Фильтр…"></th>{% endfor %}
     </tr></thead><tbody>
     {% for row in raw_rows %}<tr><td>{{ row.row_number }}</td>
       {% for column in columns %}<td>{{ row.payload.get(column, "") }}</td>{% endfor %}</tr>
     {% endfor %}</tbody></table>
+    </form>
+    <div class="toolbar" style="margin-top:14px">
+      <span>{% if page > 1 %}<a class="button"
+        href="?page={{ page - 1 }}&page_size={{ page_size }}&{{ query_without_page }}">← Назад</a>
+      {% endif %}</span>
+      <span>{% if page < max_page %}<a class="button"
+        href="?page={{ page + 1 }}&page_size={{ page_size }}&{{ query_without_page }}">Вперёд →</a>
+      {% endif %}</span>
+    </div>
   {% else %}<span class="muted">В последнем snapshot нет строк.</span>{% endif %}
   </div>
 </main></body>

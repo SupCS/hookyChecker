@@ -8,6 +8,7 @@ import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from hooky_checker.alerts import evaluate_snapshot
 from hooky_checker.db.models import IngestionRun, RawSnapshot, RunStatus
 
 DATE_COLUMN_CANDIDATES = ("Date", "date", "data_date")
@@ -64,16 +65,15 @@ def publish_push_snapshot(
     checksum = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
     effective_date = snapshot_date or datetime.now(UTC).date()
 
-    existing = session.scalar(
+    latest_same_day = session.scalar(
         select(IngestionRun).where(
             IngestionRun.source_id == source_id,
             IngestionRun.snapshot_date == effective_date,
             IngestionRun.status == RunStatus.SUCCESS,
-            IngestionRun.checksum == checksum,
-        )
+        ).order_by(IngestionRun.finished_at.desc()).limit(1)
     )
-    if existing:
-        return existing, False
+    if latest_same_day and latest_same_day.checksum == checksum:
+        return latest_same_day, False
 
     run = IngestionRun(
         source_id=source_id,
@@ -101,4 +101,5 @@ def publish_push_snapshot(
     run.status = RunStatus.SUCCESS
     run.finished_at = datetime.now(UTC)
     session.flush()
+    evaluate_snapshot(session, run)
     return run, True

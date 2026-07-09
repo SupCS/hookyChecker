@@ -19,6 +19,10 @@ function sendHookySnapshot() {
     row.map(value => value instanceof Date ? value.toISOString() : value)
   );
 
+  sendValues(values);
+}
+
+function sendValues(values) {
   const response = UrlFetchApp.fetch(API_URL, {
     method: 'post',
     contentType: 'application/json',

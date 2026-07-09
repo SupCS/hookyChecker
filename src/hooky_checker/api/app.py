@@ -2,6 +2,7 @@ import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any
+from urllib.parse import urlencode
 
 from fastapi import Depends, FastAPI, Form, Header, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -182,19 +183,56 @@ def source_detail(
         )
     )
     latest_run = next((run for run in runs if run.status == RunStatus.SUCCESS), None)
-    raw_rows = (
-        list(
-            session.scalars(
-                select(RawSnapshot)
-                .where(RawSnapshot.run_id == latest_run.id)
-                .order_by(RawSnapshot.row_number)
-                .limit(100)
-            )
+    first_row = (
+        session.scalar(
+            select(RawSnapshot)
+            .where(RawSnapshot.run_id == latest_run.id)
+            .order_by(RawSnapshot.row_number)
+            .limit(1)
         )
         if latest_run
-        else []
+        else None
     )
-    columns = list(raw_rows[0].payload) if raw_rows else []
+    columns = list(first_row.payload) if first_row else []
+    try:
+        page = max(1, int(request.query_params.get("page", "1")))
+    except ValueError:
+        page = 1
+    try:
+        page_size = int(request.query_params.get("page_size", "100"))
+    except ValueError:
+        page_size = 100
+    page_size = page_size if page_size in {50, 100, 250, 500} else 100
+    filters = {
+        column: value.strip()
+        for index, column in enumerate(columns)
+        if (value := request.query_params.get(f"f{index}", "")).strip()
+    }
+
+    raw_rows: list[RawSnapshot] = []
+    filtered_count = 0
+    if latest_run:
+        conditions = [RawSnapshot.run_id == latest_run.id]
+        conditions.extend(
+            RawSnapshot.payload[column].as_string().ilike(f"%{value}%")
+            for column, value in filters.items()
+        )
+        filtered_count = session.scalar(
+            select(func.count(RawSnapshot.id)).where(*conditions)
+        ) or 0
+        max_page = max(1, (filtered_count + page_size - 1) // page_size)
+        page = min(page, max_page)
+        raw_rows = list(
+            session.scalars(
+                select(RawSnapshot)
+                .where(*conditions)
+                .order_by(RawSnapshot.row_number)
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        )
+    else:
+        max_page = 1
     return templates.TemplateResponse(
         request=request,
         name="source_detail.html",
@@ -204,6 +242,18 @@ def source_detail(
             "latest_run": latest_run,
             "raw_rows": raw_rows,
             "columns": columns,
+            "filters": filters,
+            "filtered_count": filtered_count,
+            "page": page,
+            "page_size": page_size,
+            "max_page": max_page,
+            "query_without_page": urlencode(
+                [
+                    (f"f{index}", value)
+                    for index, column in enumerate(columns)
+                    if (value := filters.get(column))
+                ]
+            ),
         },
     )
 

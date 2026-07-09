@@ -1,4 +1,5 @@
 import secrets
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -16,7 +17,14 @@ from hooky_checker.db.session import SessionFactory, create_schema
 from hooky_checker.pipeline import publish_push_snapshot
 from hooky_checker.security import generate_ingest_token, hash_ingest_token
 
-app = FastAPI(title="Hooky Checker API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    create_schema()
+    yield
+
+
+app = FastAPI(title="Hooky Checker API", version="0.1.0", lifespan=lifespan)
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
 
@@ -34,11 +42,6 @@ def get_session():
         raise
     finally:
         session.close()
-
-
-@app.on_event("startup")
-def startup() -> None:
-    create_schema()
 
 
 @app.get("/health")
@@ -76,6 +79,13 @@ def dashboard_context(session: Session) -> dict[str, Any]:
     }
 
 
+def request_public_url(request: Request) -> str:
+    forwarded_proto = request.headers.get("x-forwarded-proto")
+    scheme = forwarded_proto.split(",", 1)[0].strip() if forwarded_proto else request.url.scheme
+    host = request.headers.get("x-forwarded-host", request.headers.get("host", request.url.netloc))
+    return f"{scheme}://{host}".rstrip("/")
+
+
 @app.get("/", response_class=HTMLResponse)
 def dashboard(
     request: Request,
@@ -109,12 +119,37 @@ def create_source(
             session.add(source)
             session.flush()
             context = dashboard_context(session)
+            context["public_api_url"] = request_public_url(request)
             context["new_source"] = source
             context["new_token"] = token
         except IntegrityError:
             session.rollback()
             context = dashboard_context(session)
             context["source_error"] = "Проект с таким названием уже существует."
+    return templates.TemplateResponse(
+        request=request,
+        name="dashboard.html",
+        context=context,
+    )
+
+
+@app.post("/sources/{source_id}/rotate-token", response_class=HTMLResponse)
+def rotate_source_token(
+    source_id: str,
+    request: Request,
+    session: Annotated[Session, Depends(get_session)],
+) -> HTMLResponse:
+    source = session.get(DataSource, source_id)
+    if source is None:
+        raise HTTPException(status_code=404, detail="Source not found")
+    token = generate_ingest_token()
+    source.ingest_token_hash = hash_ingest_token(token)
+    session.flush()
+    context = dashboard_context(session)
+    context["public_api_url"] = request_public_url(request)
+    context["new_source"] = source
+    context["new_token"] = token
+    context["token_rotated"] = True
     return templates.TemplateResponse(
         request=request,
         name="dashboard.html",

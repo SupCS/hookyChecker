@@ -57,7 +57,10 @@
 
   {% if new_source %}
   <div class="card success" style="margin-top:16px">
-    <strong>Источник {{ new_source.name }} создан</strong>
+    <strong>
+      {% if token_rotated %}Токен источника {{ new_source.name }} обновлён
+      {% else %}Источник {{ new_source.name }} создан{% endif %}
+    </strong>
     <p>Скопируйте значения сейчас: токен повторно не показывается.</p>
     <pre>API_URL = '{{ public_api_url }}/api/v1/snapshots'
 INGEST_TOKEN = '{{ new_token }}'
@@ -68,9 +71,12 @@ WORKSHEET_NAME = '{{ new_source.worksheet_name }}'</pre>
 
   {% if sources %}
   <div class="card" style="margin-top:16px">
-    <table><thead><tr><th>Проект</th><th>Вкладка</th><th>Статус</th></tr></thead><tbody>
+    <table><thead><tr><th>Проект</th><th>Вкладка</th><th>Статус</th><th></th></tr></thead><tbody>
     {% for source in sources %}<tr><td>{{ source.name }}</td>
-      <td>{{ source.worksheet_name }}</td><td>{{ "Активен" if source.enabled else "Выключен" }}</td></tr>
+      <td>{{ source.worksheet_name }}</td><td>{{ "Активен" if source.enabled else "Выключен" }}</td>
+      <td><form method="post" action="/sources/{{ source.id }}/rotate-token"
+        onsubmit="return confirm('Старый токен перестанет работать. Продолжить?')">
+        <button type="submit">Новый токен</button></form></td></tr>
     {% endfor %}
     </tbody></table>
   </div>

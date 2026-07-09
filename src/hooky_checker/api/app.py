@@ -1,5 +1,6 @@
 import secrets
 from contextlib import asynccontextmanager
+from datetime import date
 from pathlib import Path
 from typing import Annotated, Any
 from urllib.parse import urlencode
@@ -15,6 +16,7 @@ from starlette.templating import Jinja2Templates
 from hooky_checker.config import get_settings
 from hooky_checker.db.models import (
     Alert,
+    AlertEvent,
     AlertStatus,
     DataSource,
     IngestionRun,
@@ -75,13 +77,21 @@ def dashboard_context(session: Session) -> dict[str, Any]:
             Alert.severity == "CRITICAL",
         )
     )
+    alerts = list(session.scalars(select(Alert).order_by(Alert.last_seen_at.desc()).limit(200)))
+    alert_rows = []
+    for alert in alerts:
+        latest_event = session.scalar(
+            select(AlertEvent)
+            .where(AlertEvent.alert_id == alert.id)
+            .order_by(AlertEvent.created_at.desc())
+            .limit(1)
+        )
+        alert_rows.append({"alert": alert, "event": latest_event})
     return {
         "latest_run": latest_run,
         "active_count": active_count or 0,
         "critical_count": critical_count or 0,
-        "alerts": list(
-            session.scalars(select(Alert).order_by(Alert.last_seen_at.desc()).limit(200))
-        ),
+        "alert_rows": alert_rows,
         "sources": list(session.scalars(select(DataSource).order_by(DataSource.name))),
         "public_api_url": get_settings().effective_public_api_url,
     }
@@ -254,6 +264,112 @@ def source_detail(
                     if (value := filters.get(column))
                 ]
             ),
+        },
+    )
+
+
+def _rows_for_alert(
+    session: Session,
+    run_id: str | None,
+    dimensions: dict[str, Any],
+) -> list[RawSnapshot]:
+    if run_id is None:
+        return []
+    conditions = [RawSnapshot.run_id == run_id]
+    for key, value in dimensions.items():
+        if key == "source_id":
+            continue
+        if key == "data_date":
+            parsed_date = date.fromisoformat(value) if isinstance(value, str) else value
+            conditions.append(RawSnapshot.data_date == parsed_date)
+        else:
+            conditions.append(RawSnapshot.payload[key].as_string() == str(value))
+    return list(
+        session.scalars(
+            select(RawSnapshot)
+            .where(*conditions)
+            .order_by(RawSnapshot.row_number)
+            .limit(500)
+        )
+    )
+
+
+@app.get("/alerts/{alert_id}", response_class=HTMLResponse)
+def alert_detail(
+    alert_id: str,
+    request: Request,
+    session: Annotated[Session, Depends(get_session)],
+) -> HTMLResponse:
+    alert = session.get(Alert, alert_id)
+    if alert is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    events = list(
+        session.scalars(
+            select(AlertEvent)
+            .where(AlertEvent.alert_id == alert.id)
+            .order_by(AlertEvent.created_at.desc())
+        )
+    )
+    latest_event = events[0] if events else None
+    current_run = (
+        session.get(IngestionRun, latest_event.run_id)
+        if latest_event and latest_event.run_id
+        else None
+    )
+    previous_run = (
+        session.scalar(
+            select(IngestionRun)
+            .where(
+                IngestionRun.source_id == current_run.source_id,
+                IngestionRun.status == RunStatus.SUCCESS,
+                IngestionRun.finished_at < current_run.finished_at,
+            )
+            .order_by(IngestionRun.finished_at.desc())
+            .limit(1)
+        )
+        if current_run
+        else None
+    )
+    source_id = alert.dimensions.get("source_id")
+    source = session.get(DataSource, source_id) if source_id else None
+    previous_rows = _rows_for_alert(
+        session,
+        previous_run.id if previous_run else None,
+        alert.dimensions,
+    )
+    current_rows = _rows_for_alert(
+        session,
+        current_run.id if current_run else None,
+        alert.dimensions,
+    )
+    all_rows = previous_rows or current_rows
+    columns = list(all_rows[0].payload) if all_rows else []
+    metric = alert.check_type.removesuffix("_drop")
+    previous_by_number = {row.row_number: row for row in previous_rows}
+    current_by_number = {row.row_number: row for row in current_rows}
+    changed_row_numbers = {
+        row_number
+        for row_number in previous_by_number.keys() | current_by_number.keys()
+        if previous_by_number.get(row_number) is None
+        or current_by_number.get(row_number) is None
+        or previous_by_number[row_number].payload.get(metric)
+        != current_by_number[row_number].payload.get(metric)
+    }
+    return templates.TemplateResponse(
+        request=request,
+        name="alert_detail.html",
+        context={
+            "alert": alert,
+            "events": events,
+            "event": latest_event,
+            "source": source,
+            "previous_run": previous_run,
+            "current_run": current_run,
+            "previous_rows": previous_rows,
+            "current_rows": current_rows,
+            "columns": columns,
+            "metric": metric,
+            "changed_row_numbers": changed_row_numbers,
         },
     )
 

@@ -84,10 +84,18 @@ WORKSHEET_NAME = '{{ new_source.worksheet_name }}'</pre>
 
   <h2>Алерты</h2>
   <div class="card">
-  {% if alerts %}
-    <table><thead><tr><th>Статус</th><th>Severity</th><th>Проверка</th><th>Описание</th></tr></thead>
-    <tbody>{% for alert in alerts %}<tr><td>{{ alert.status.value }}</td>
-      <td>{{ alert.severity }}</td><td>{{ alert.check_type }}</td><td>{{ alert.title }}</td></tr>
+  {% if alert_rows %}
+    <table><thead><tr><th>Статус</th><th>Проверка</th><th>Дата</th><th>Канал</th>
+      <th>Кампания</th><th>Было</th><th>Стало</th><th>Описание</th></tr></thead>
+    <tbody>{% for item in alert_rows %}{% set alert = item.alert %}{% set event = item.event %}
+      <tr><td>{{ alert.status.value }}</td>
+      <td><a href="/alerts/{{ alert.id }}">{{ alert.check_type }}</a></td>
+      <td>{{ alert.dimensions.get("data_date", "—") }}</td>
+      <td>{{ alert.dimensions.get("Channel_Short_Name", alert.dimensions.get("Channel", "—")) }}</td>
+      <td>{{ alert.dimensions.get("Campaign_Short_Name", alert.dimensions.get("Campaign", "—")) }}</td>
+      <td>{{ event.expected if event and event.expected is not none else "—" }}</td>
+      <td>{{ event.actual if event and event.actual is not none else "—" }}</td>
+      <td><a href="/alerts/{{ alert.id }}">{{ alert.title }} →</a></td></tr>
     {% endfor %}</tbody></table>
   {% else %}<span class="muted">Алертов пока нет.</span>{% endif %}
   </div>

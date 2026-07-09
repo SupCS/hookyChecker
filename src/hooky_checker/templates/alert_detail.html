@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ alert.title }} — Hooky Checker</title>
+  <style>
+    :root { color-scheme:dark; --bg:#0b1020; --card:#151c30; --line:#29324b;
+      --muted:#9da8c2; --accent:#75a7ff; --bad:#ff7185; --badbg:#482333; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:#edf2ff;
+      font:15px/1.5 Inter,system-ui,sans-serif; }
+    main { max-width:1500px; margin:auto; padding:36px 24px; }
+    a { color:var(--accent); } h1 { margin:18px 0 4px; }
+    .muted { color:var(--muted); }
+    .card { margin-top:20px; background:var(--card); border:1px solid var(--line);
+      border-radius:14px; padding:20px; overflow:auto; }
+    .metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+    .metric strong { display:block; font-size:24px; margin-top:4px; }
+    .dimensions { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+    .tag { border:1px solid var(--line); background:#0c1325; border-radius:20px;
+      padding:6px 11px; }
+    table { width:100%; border-collapse:collapse; white-space:nowrap; }
+    th,td { padding:9px 11px; border-bottom:1px solid var(--line); text-align:left; }
+    th { color:var(--muted); position:sticky; top:0; background:var(--card); }
+    .problem { background:var(--badbg); color:#ffdce2; font-weight:700; }
+    .row-number { color:var(--accent); font-weight:700; }
+    .compare { display:grid; grid-template-columns:1fr; gap:20px; }
+    @media(max-width:800px) { .metrics { grid-template-columns:1fr 1fr; } }
+  </style>
+</head>
+<body><main>
+  <a href="/">← Все алерты</a>
+  {% if source %} · <a href="/sources/{{ source.id }}">{{ source.name }}</a>{% endif %}
+  <h1>{{ alert.title }}</h1>
+  <div class="muted">{{ alert.check_type }} · {{ alert.status.value }} · {{ alert.severity }}</div>
+
+  <section class="metrics">
+    <div class="card metric"><span class="muted">Было</span>
+      <strong>{{ event.expected if event and event.expected is not none else "—" }}</strong></div>
+    <div class="card metric"><span class="muted">Стало</span>
+      <strong>{{ event.actual if event and event.actual is not none else "—" }}</strong></div>
+    <div class="card metric"><span class="muted">Изменение</span>
+      <strong>{% if event and event.expected is not none and event.actual is not none %}
+        {{ event.actual - event.expected }}{% else %}—{% endif %}</strong></div>
+    <div class="card metric"><span class="muted">Метрика</span><strong>{{ metric }}</strong></div>
+  </section>
+
+  <div class="dimensions">
+    {% for key, value in alert.dimensions.items() %}{% if key != "source_id" %}
+      <span class="tag"><span class="muted">{{ key }}:</span> {{ value }}</span>
+    {% endif %}{% endfor %}
+  </div>
+
+  <div class="compare">
+    <section>
+      <h2>Предыдущий snapshot{% if previous_run %} · {{ previous_run.snapshot_date }}{% endif %}</h2>
+      <div class="card">
+      {% if previous_rows %}
+        <div class="muted">Номер — это строка исходной Google Sheet на момент snapshot.</div>
+        <table><thead><tr><th>Строка</th>{% for column in columns %}
+          <th class="{% if column == metric %}problem{% endif %}">{{ column }}</th>{% endfor %}
+        </tr></thead><tbody>{% for row in previous_rows %}<tr>
+          <td class="row-number">{{ row.row_number }}</td>{% for column in columns %}
+          <td class="{% if column == metric and row.row_number in changed_row_numbers %}problem{% endif %}">
+            {{ row.payload.get(column, "") }}</td>
+          {% endfor %}</tr>{% endfor %}</tbody></table>
+      {% else %}<span class="muted">Подходящих строк нет.</span>{% endif %}
+      </div>
+    </section>
+
+    <section>
+      <h2>Текущий snapshot{% if current_run %} · {{ current_run.snapshot_date }}{% endif %}</h2>
+      <div class="card">
+      {% if current_rows %}
+        <div class="muted">Показаны строки, соответствующие dimensions алерта.</div>
+        <table><thead><tr><th>Строка</th>{% for column in columns %}
+          <th class="{% if column == metric %}problem{% endif %}">{{ column }}</th>{% endfor %}
+        </tr></thead><tbody>{% for row in current_rows %}<tr>
+          <td class="row-number">{{ row.row_number }}</td>{% for column in columns %}
+          <td class="{% if column == metric and row.row_number in changed_row_numbers %}problem{% endif %}">
+            {{ row.payload.get(column, "") }}</td>
+          {% endfor %}</tr>{% endfor %}</tbody></table>
+      {% else %}<span class="muted">Строки исчезли из текущего snapshot.</span>{% endif %}
+      </div>
+    </section>
+  </div>
+
+  <h2>История алерта</h2>
+  <div class="card"><table><thead><tr><th>Время</th><th>Статус</th><th>Было</th>
+    <th>Стало</th></tr></thead><tbody>{% for item in events %}<tr>
+    <td>{{ item.created_at }}</td><td>{{ item.status.value }}</td>
+    <td>{{ item.expected if item.expected is not none else "—" }}</td>
+    <td>{{ item.actual if item.actual is not none else "—" }}</td></tr>{% endfor %}
+  </tbody></table></div>
+</main></body>
+</html>

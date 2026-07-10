@@ -16,7 +16,7 @@ def test_dashboard_payload_maps_dimensions_and_dynamic_metrics() -> None:
                 "Date": "2026-07-01",
                 "Campaign_Short_Name": "Summer",
                 "Channel_Short_Name": "Search",
-                "cnb_geo": "Austin",
+                "CNB_geo": "Austin",
                 "Impressions": "1,000",
                 "Cost": "$25.50",
                 "Movie Tix": 3,
@@ -27,6 +27,7 @@ def test_dashboard_payload_maps_dimensions_and_dynamic_metrics() -> None:
     result = dashboard_payload(rows)
     assert result["warnings"] == []
     assert result["rows"][0]["campaign"] == "Summer"
+    assert result["rows"][0]["location"] == "Austin"
     assert result["rows"][0]["metrics"] == {
         "impressions": "1000",
         "cost": "25.50",

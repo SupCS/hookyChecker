@@ -8,7 +8,7 @@ FIELD_CANDIDATES = {
     "date": ("Date", "date", "data_date"),
     "campaign": ("Campaign_Short_Name", "campaign_short_name"),
     "channel": ("Channel_Short_Name", "channel_short_name", "Channel", "channel"),
-    "location": ("cnb_geo", "CNB_Geo", "Location", "location", "Geo", "geo"),
+    "location": ("CNB_geo", "cnb_geo", "CNB_Geo", "Location", "location", "Geo", "geo"),
 }
 METRIC_CANDIDATES = {
     "impressions": ("Impressions", "impressions"),

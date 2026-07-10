@@ -62,6 +62,9 @@
 
 ## Phase 5 — Web UI
 
+- [x] Dashboard выбранного `SUCCESS` snapshot с live-фильтрами campaign/channel/location/date
+      и performance-виджетами по channel/location/month.
+
 - [x] Создать базовый Overview: последний запуск, число open/critical alerts.
 - [ ] Явный блок сегодняшних новых и продолжающихся алертов.
 - [ ] История с фильтрами по статусу, severity, check, дате и dimensions.

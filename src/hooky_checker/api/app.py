@@ -14,6 +14,7 @@ from starlette.responses import HTMLResponse, RedirectResponse
 from starlette.templating import Jinja2Templates
 
 from hooky_checker.config import get_settings
+from hooky_checker.dashboard import dashboard_payload
 from hooky_checker.db.models import (
     Alert,
     AlertEvent,
@@ -233,9 +234,7 @@ def source_detail(
             RawSnapshot.payload[column].as_string().ilike(f"%{value}%")
             for column, value in filters.items()
         )
-        filtered_count = session.scalar(
-            select(func.count(RawSnapshot.id)).where(*conditions)
-        ) or 0
+        filtered_count = session.scalar(select(func.count(RawSnapshot.id)).where(*conditions)) or 0
         max_page = max(1, (filtered_count + page_size - 1) // page_size)
         page = min(page, max_page)
         raw_rows = list(
@@ -274,6 +273,63 @@ def source_detail(
     )
 
 
+@app.get("/sources/{source_id}/dashboard", response_class=HTMLResponse)
+def source_performance_dashboard(
+    source_id: str,
+    request: Request,
+    session: Annotated[Session, Depends(get_session)],
+) -> HTMLResponse:
+    source = session.get(DataSource, source_id)
+    if source is None:
+        raise HTTPException(status_code=404, detail="Source not found")
+    runs = list(
+        session.scalars(
+            select(IngestionRun)
+            .where(
+                IngestionRun.source_id == source.id,
+                IngestionRun.status == RunStatus.SUCCESS,
+            )
+            .order_by(IngestionRun.finished_at.desc())
+            .limit(50)
+        )
+    )
+    return templates.TemplateResponse(
+        request=request,
+        name="performance_dashboard.html",
+        context={"source": source, "runs": runs},
+    )
+
+
+@app.get("/api/v1/sources/{source_id}/performance")
+def source_performance_data(
+    source_id: str,
+    session: Annotated[Session, Depends(get_session)],
+    run_id: str | None = None,
+) -> dict[str, Any]:
+    query = select(IngestionRun).where(
+        IngestionRun.source_id == source_id,
+        IngestionRun.status == RunStatus.SUCCESS,
+    )
+    if run_id:
+        query = query.where(IngestionRun.id == run_id)
+    run = session.scalar(query.order_by(IngestionRun.finished_at.desc()).limit(1))
+    if run is None:
+        raise HTTPException(status_code=404, detail="Successful snapshot not found")
+    rows = list(
+        session.scalars(
+            select(RawSnapshot).where(RawSnapshot.run_id == run.id).order_by(RawSnapshot.row_number)
+        )
+    )
+    return {
+        "run": {
+            "id": run.id,
+            "snapshot_date": run.snapshot_date.isoformat(),
+            "row_count": run.source_row_count,
+        },
+        **dashboard_payload(rows),
+    }
+
+
 def _rows_for_alert(
     session: Session,
     run_id: str | None,
@@ -292,10 +348,7 @@ def _rows_for_alert(
             conditions.append(RawSnapshot.payload[key].as_string() == str(value))
     return list(
         session.scalars(
-            select(RawSnapshot)
-            .where(*conditions)
-            .order_by(RawSnapshot.row_number)
-            .limit(500)
+            select(RawSnapshot).where(*conditions).order_by(RawSnapshot.row_number).limit(500)
         )
     )
 
@@ -351,9 +404,7 @@ def alert_detail(
     all_rows = previous_rows or current_rows
     columns = list(all_rows[0].payload) if all_rows else []
     changes = (
-        latest_event.evidence.get("changes", [])
-        if latest_event and latest_event.evidence
-        else []
+        latest_event.evidence.get("changes", []) if latest_event and latest_event.evidence else []
     )
     metrics = [change["metric"] for change in changes]
     if not metrics:

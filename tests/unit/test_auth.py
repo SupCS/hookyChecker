@@ -108,6 +108,7 @@ def test_editor_can_save_valid_dashboard_config() -> None:
                         title="Leads by channel",
                         metrics=["Lead Form"],
                         breakdown="channel",
+                        formats={"Lead Form": "number"},
                     )
                 ],
             ),
@@ -119,4 +120,5 @@ def test_editor_can_save_valid_dashboard_config() -> None:
         assert session.get(DashboardConfig, source.id).updated_by == editor.id
         revision = session.query(DashboardConfigRevision).one()
         assert revision.changed_by == editor.id
+        assert result["config"]["widgets"][0]["formats"] == {"Lead Form": "number"}
         assert current_user(cookie_request(token), session) == editor

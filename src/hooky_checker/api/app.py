@@ -98,6 +98,7 @@ class WidgetConfig(BaseModel):
     metrics: list[str] = Field(min_length=1, max_length=30)
     breakdown: str | None = Field(default=None, pattern=r"^(campaign|channel|location|month)$")
     format: str = Field(default="auto", pattern=r"^(auto|currency|percent|number)$")
+    formats: dict[str, str] = Field(default_factory=dict, max_length=30)
 
     @model_validator(mode="after")
     def validate_breakdown(self):
@@ -105,6 +106,16 @@ class WidgetConfig(BaseModel):
             raise ValueError("Table widgets require a breakdown")
         if self.type == "kpi":
             self.breakdown = None
+        invalid_formats = sorted(
+            metric
+            for metric, value in self.formats.items()
+            if metric not in self.metrics
+            or value not in {"auto", "currency", "percent", "number"}
+        )
+        if invalid_formats:
+            raise ValueError(
+                f"Invalid per-metric formats: {', '.join(invalid_formats)}"
+            )
         return self
 
 

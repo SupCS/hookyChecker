@@ -62,6 +62,7 @@
 
 ## Phase 5 — Web UI
 
+- [x] Translate all user-facing interface text and runtime messages to English.
 - [x] Добавить публичный viewer-доступ и локальную авторизацию editor/admin.
 - [x] Добавить админский поиск пользователей и управление ролями viewer/editor.
 - [x] Добавить сохраняемую конфигурацию KPI и табличных виджетов по источнику.

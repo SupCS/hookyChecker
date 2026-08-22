@@ -12,24 +12,24 @@ create_schema()
 settings = get_settings()
 
 st.title("Hooky Checker")
-st.caption("Мониторинг качества данных из Google Sheets")
+st.caption("Google Sheets data quality monitoring")
 
-overview_tab, sources_tab = st.tabs(["Мониторинг", "Источники"])
+overview_tab, sources_tab = st.tabs(["Monitoring", "Sources"])
 
 with sources_tab:
-    st.subheader("Подключённые проекты")
+    st.subheader("Connected projects")
     st.caption(
-        "Google Sheet отправляет данные через Apps Script. "
-        "Таблицу не нужно публиковать или подключать к Google Cloud."
+        "Google Sheet sends data through Apps Script. "
+        "The sheet does not need to be published or connected to Google Cloud."
     )
 
     with st.form("add_source", clear_on_submit=True):
-        source_name = st.text_input("Название проекта")
-        worksheet_name = st.text_input("Название вкладки", value="All_Data")
-        submitted = st.form_submit_button("Добавить источник")
+        source_name = st.text_input("Project name")
+        worksheet_name = st.text_input("Worksheet name", value="All_Data")
+        submitted = st.form_submit_button("Add source")
         if submitted:
             if not source_name.strip() or not worksheet_name.strip():
-                st.error("Заполните все поля")
+                st.error("Complete all fields")
             else:
                 ingest_token = generate_ingest_token()
                 try:
@@ -47,21 +47,21 @@ with sources_tab:
                         "token": ingest_token,
                     }
                     st.success(
-                        "Источник добавлен. Скопируйте токен ниже — "
-                        "повторно он не показывается."
+                        "Source added. Copy the token below — "
+                        "it will not be shown again."
                     )
                 except IntegrityError:
-                    st.error("Источник с таким названием уже существует")
+                    st.error("A source with this name already exists")
 
     with session_scope() as session:
         sources = list(session.scalars(select(DataSource).order_by(DataSource.name)))
 
     if sources:
-        selected_name = st.selectbox("Проект", [source.name for source in sources])
+        selected_name = st.selectbox("Project", [source.name for source in sources])
         selected = next(source for source in sources if source.name == selected_name)
         credentials = st.session_state.get("new_source_credentials")
         if credentials and credentials["source_id"] == selected.id:
-            st.markdown("Скопируйте эти значения в `apps_script/Code.gs`:")
+            st.markdown("Copy these values into `apps_script/Code.gs`:")
             st.code(
                 f"API URL: {settings.public_api_url}\n"
                 f"INGEST TOKEN: {credentials['token']}\n"
@@ -69,14 +69,14 @@ with sources_tab:
             )
         else:
             st.info(
-                "Токен скрыт. Если он потерян, потребуется выпустить новый "
-                "(функция ротации будет добавлена следующим шагом)."
+                "The token is hidden. If it is lost, you will need to issue a new one "
+                "(token rotation will be added in the next step)."
             )
     else:
-        st.info("Добавьте первый источник выше.")
+        st.info("Add your first source above.")
 
 with overview_tab:
-    st.subheader("Состояние мониторинга")
+    st.subheader("Monitoring status")
 
 with session_scope() as session:
     latest_run = session.scalar(
@@ -102,16 +102,16 @@ with session_scope() as session:
 
 with overview_tab:
     col1, col2, col3 = st.columns(3)
-    col1.metric("Активные алерты", active_count or 0)
-    col2.metric("Критические", critical_count or 0)
+    col1.metric("Active alerts", active_count or 0)
+    col2.metric("Critical", critical_count or 0)
     col3.metric(
-        "Последний успешный snapshot",
-        latest_run.snapshot_date.isoformat() if latest_run else "ещё не запускался",
+        "Latest successful snapshot",
+        latest_run.snapshot_date.isoformat() if latest_run else "not run yet",
     )
 
-    st.subheader("Алерты")
+    st.subheader("Alerts")
     if not alerts:
-        st.info("Алертов пока нет. После подключения таблицы здесь появятся результаты проверок.")
+        st.info("No alerts yet. Check results will appear here after connecting a sheet.")
     else:
         st.dataframe(
             [

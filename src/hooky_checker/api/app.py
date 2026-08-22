@@ -189,7 +189,7 @@ def login(
             request=request,
             name="login.html",
             context={
-                "error": "Неверный email или пароль.",
+                "error": "Invalid email or password.",
                 "email": email,
                 "csrf_token": csrf_token(request),
             },
@@ -379,7 +379,7 @@ def change_password(
             context={
                 "current_user": user,
                 "csrf_token": csrf_token(request),
-                "error": "Текущий пароль указан неверно.",
+                "error": "The current password is incorrect.",
             },
             status_code=400,
         )
@@ -478,7 +478,7 @@ def create_source(
     require_csrf(request, csrf)
     context = dashboard_context(session, request)
     if not name.strip() or not worksheet_name.strip():
-        context["source_error"] = "Заполните название проекта и вкладки."
+        context["source_error"] = "Project and worksheet names are required."
     else:
         token = generate_ingest_token()
         try:
@@ -496,7 +496,7 @@ def create_source(
         except IntegrityError:
             session.rollback()
             context = dashboard_context(session, request)
-            context["source_error"] = "Проект с таким названием уже существует."
+            context["source_error"] = "A project with this name already exists."
     return templates.TemplateResponse(
         request=request,
         name="dashboard.html",

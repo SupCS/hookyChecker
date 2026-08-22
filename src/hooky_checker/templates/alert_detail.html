@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -36,25 +36,25 @@
   </style>
 </head>
 <body><main>
-  <a href="/">← Все алерты</a>
+  <a href="/">← All alerts</a>
   {% if source %} · <a href="/sources/{{ source.id }}">{{ source.name }}</a>{% endif %}
   <h1>{{ alert.title }}</h1>
   <div class="muted">{{ alert.check_type }} · {{ alert.status.value }} · {{ alert.severity }}</div>
 
   <section class="metrics">
-    <div class="card metric"><span class="muted">Было</span>
+    <div class="card metric"><span class="muted">Previous</span>
       <strong>{{ event.expected if event and event.expected is not none else "—" }}</strong></div>
-    <div class="card metric"><span class="muted">Стало</span>
+    <div class="card metric"><span class="muted">Current</span>
       <strong>{{ event.actual if event and event.actual is not none else "—" }}</strong></div>
-    <div class="card metric"><span class="muted">Изменение</span>
+    <div class="card metric"><span class="muted">Change</span>
       <strong>{% if event and event.expected is not none and event.actual is not none %}
         {{ event.actual - event.expected }}{% else %}—{% endif %}</strong></div>
-    <div class="card metric"><span class="muted">Метрики</span>
+    <div class="card metric"><span class="muted">Metrics</span>
       <strong>{{ metrics|join(", ") }}</strong></div>
   </section>
 
   {% if changes %}
-  <div class="card"><table><thead><tr><th>Метрика</th><th>Было</th><th>Стало</th>
+  <div class="card"><table><thead><tr><th>Metric</th><th>Previous</th><th>Current</th>
     <th>Delta</th></tr></thead><tbody>{% for change in changes %}<tr>
     <td class="problem">{{ change.metric }}</td><td>{{ change.expected }}</td>
     <td>{{ change.actual }}</td><td>{{ change.delta }}</td></tr>{% endfor %}
@@ -69,58 +69,58 @@
 
   {% if current_user and current_user.role.value in ["editor", "admin"] and alert.status.value in ["OPEN", "ONGOING", "RECOVERED"] %}
   <div class="card">
-    <strong>Изменение ожидаемое?</strong>
-    <p class="muted">Закройте incident вручную и зафиксируйте причину принятия данных.</p>
+    <strong>Is this change expected?</strong>
+    <p class="muted">Resolve the incident manually and record why the data was accepted.</p>
     <form method="post" action="/alerts/{{ alert.id }}/resolve">
       <input type="hidden" name="csrf" value="{{ csrf_token }}">
-      <label>Комментарий<input name="reason" required
-        placeholder="Например: корректировка подтверждена клиентом"></label>
-      <label>Кто закрыл<input name="resolved_by" value="Manual"></label>
-      <button type="submit">Принять и закрыть</button>
+      <label>Comment<input name="reason" required
+        placeholder="For example: the adjustment was confirmed by the client"></label>
+      <label>Resolved by<input name="resolved_by" value="Manual"></label>
+      <button type="submit">Accept and resolve</button>
     </form>
   </div>
   {% elif alert.acknowledged_at %}
-  <div class="card"><strong>Закрыто вручную</strong>
+  <div class="card"><strong>Resolved manually</strong>
     <div class="muted">{{ alert.acknowledged_by }} · {{ alert.acknowledged_at }}</div></div>
   {% endif %}
 
   <div class="compare">
     <section>
-      <h2>Предыдущий snapshot{% if previous_run %} · {{ previous_run.snapshot_date }}{% endif %}</h2>
+      <h2>Previous snapshot{% if previous_run %} · {{ previous_run.snapshot_date }}{% endif %}</h2>
       <div class="card">
       {% if previous_rows %}
-        <div class="muted">Номер — это строка исходной Google Sheet на момент snapshot.</div>
-        <table><thead><tr><th>Строка</th>{% for column in columns %}
+        <div class="muted">The number is the source Google Sheet row at snapshot time.</div>
+        <table><thead><tr><th>Row</th>{% for column in columns %}
           <th class="{% if column in metrics %}problem{% endif %}">{{ column }}</th>{% endfor %}
         </tr></thead><tbody>{% for row in previous_rows %}<tr>
           <td class="row-number">{{ row.row_number }}</td>{% for column in columns %}
           <td class="{% if column in metrics and row.row_number in changed_row_numbers %}problem{% endif %}">
             {{ row.payload.get(column, "") }}</td>
           {% endfor %}</tr>{% endfor %}</tbody></table>
-      {% else %}<span class="muted">Подходящих строк нет.</span>{% endif %}
+      {% else %}<span class="muted">No matching rows.</span>{% endif %}
       </div>
     </section>
 
     <section>
-      <h2>Текущий snapshot{% if current_run %} · {{ current_run.snapshot_date }}{% endif %}</h2>
+      <h2>Current snapshot{% if current_run %} · {{ current_run.snapshot_date }}{% endif %}</h2>
       <div class="card">
       {% if current_rows %}
-        <div class="muted">Показаны строки, соответствующие dimensions алерта.</div>
-        <table><thead><tr><th>Строка</th>{% for column in columns %}
+        <div class="muted">Rows matching the alert dimensions are shown.</div>
+        <table><thead><tr><th>Row</th>{% for column in columns %}
           <th class="{% if column in metrics %}problem{% endif %}">{{ column }}</th>{% endfor %}
         </tr></thead><tbody>{% for row in current_rows %}<tr>
           <td class="row-number">{{ row.row_number }}</td>{% for column in columns %}
           <td class="{% if column in metrics and row.row_number in changed_row_numbers %}problem{% endif %}">
             {{ row.payload.get(column, "") }}</td>
           {% endfor %}</tr>{% endfor %}</tbody></table>
-      {% else %}<span class="muted">Строки исчезли из текущего snapshot.</span>{% endif %}
+      {% else %}<span class="muted">The rows are missing from the current snapshot.</span>{% endif %}
       </div>
     </section>
   </div>
 
-  <h2>История алерта</h2>
-  <div class="card"><table><thead><tr><th>Время</th><th>Статус</th><th>Было</th>
-    <th>Стало</th><th>Комментарий</th></tr></thead><tbody>{% for item in events %}<tr>
+  <h2>Alert history</h2>
+  <div class="card"><table><thead><tr><th>Time</th><th>Status</th><th>Previous</th>
+    <th>Current</th><th>Comment</th></tr></thead><tbody>{% for item in events %}<tr>
     <td>{{ item.created_at }}</td><td>{{ item.status.value }}</td>
     <td>{{ item.expected if item.expected is not none else "—" }}</td>
     <td>{{ item.actual if item.actual is not none else "—" }}</td>

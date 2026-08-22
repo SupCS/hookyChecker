@@ -41,17 +41,17 @@ def _canonical_payload(row: dict[str, Any]) -> dict[str, Any]:
 
 def dataframe_from_values(values: list[list[Any]]) -> pd.DataFrame:
     if not values:
-        raise ValueError("Получен пустой snapshot")
+        raise ValueError("The snapshot is empty")
     headers = [str(value).strip() for value in values[0]]
     if not headers or not any(headers):
-        raise ValueError("В первой строке отсутствуют заголовки")
+        raise ValueError("The first row does not contain headers")
     if len(headers) != len(set(headers)):
-        raise ValueError("В таблице есть дублирующиеся названия колонок")
+        raise ValueError("The table contains duplicate column names")
     width = len(headers)
     rows = [row[:width] + [None] * max(0, width - len(row)) for row in values[1:]]
     frame = pd.DataFrame(rows, columns=headers).dropna(how="all").reset_index(drop=True)
     if frame.empty:
-        raise ValueError("В snapshot нет строк данных")
+        raise ValueError("The snapshot contains no data rows")
     return frame
 
 

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -33,50 +33,50 @@
   </style>
 </head>
 <body><main>
-  <a href="/">← Все проекты</a>
+  <a href="/">← All projects</a>
   <h1>{{ source.name }}</h1>
   <p><a class="button" href="/sources/{{ source.id }}/dashboard">Performance dashboard</a></p>
-  <div class="muted">Вкладка {{ source.worksheet_name }}</div>
+  <div class="muted">Worksheet: {{ source.worksheet_name }}</div>
 
   <section class="metrics">
-    <div class="card metric"><span class="muted">Последний snapshot</span>
+    <div class="card metric"><span class="muted">Latest snapshot</span>
       <strong>{{ latest_run.snapshot_date if latest_run else "—" }}</strong></div>
-    <div class="card metric"><span class="muted">Строк</span>
+    <div class="card metric"><span class="muted">Rows</span>
       <strong>{{ latest_run.source_row_count if latest_run else 0 }}</strong></div>
-    <div class="card metric"><span class="muted">Статус</span>
-      <strong>{{ latest_run.status.value if latest_run else "Нет данных" }}</strong></div>
+    <div class="card metric"><span class="muted">Status</span>
+      <strong>{{ latest_run.status.value if latest_run else "No data" }}</strong></div>
   </section>
 
-  <h2>История snapshots</h2>
+  <h2>Snapshot history</h2>
   <div class="card">
   {% if runs %}
-    <table><thead><tr><th>Дата снимка</th><th>Статус</th><th>Строк</th>
-      <th>Получен</th><th>Checksum</th></tr></thead><tbody>
+    <table><thead><tr><th>Snapshot date</th><th>Status</th><th>Rows</th>
+      <th>Received</th><th>Checksum</th></tr></thead><tbody>
     {% for run in runs %}<tr><td>{{ run.snapshot_date }}</td><td>{{ run.status.value }}</td>
       <td>{{ run.source_row_count }}</td><td>{{ run.finished_at or run.started_at }}</td>
       <td><code>{{ run.checksum[:12] if run.checksum else "—" }}</code></td></tr>
     {% endfor %}</tbody></table>
-  {% else %}<span class="muted">Snapshots ещё не поступали.</span>{% endif %}
+  {% else %}<span class="muted">No snapshots received yet.</span>{% endif %}
   </div>
 
-  <h2>Preview последнего snapshot</h2>
+  <h2>Latest snapshot preview</h2>
   <div class="card">
   {% if columns %}
     <form method="get">
     <div class="toolbar">
-      <span class="muted">Найдено строк: {{ filtered_count }} · страница {{ page }} из {{ max_page }}</span>
-      <span><label>На странице
+      <span class="muted">Rows found: {{ filtered_count }} · page {{ page }} of {{ max_page }}</span>
+      <span><label>Rows per page
         <select name="page_size">{% for size in [50, 100, 250, 500] %}
           <option value="{{ size }}" {% if page_size == size %}selected{% endif %}>{{ size }}</option>
         {% endfor %}</select></label>
-        <button type="submit">Применить фильтры</button>
-        <a class="button" href="/sources/{{ source.id }}">Сбросить</a>
+        <button type="submit">Apply filters</button>
+        <a class="button" href="/sources/{{ source.id }}">Reset</a>
       </span>
     </div>
     <table><thead><tr><th>№</th>{% for column in columns %}<th>{{ column }}</th>{% endfor %}
     </tr><tr class="filters"><th></th>{% for column in columns %}
       <th><input name="f{{ loop.index0 }}" value="{{ filters.get(column, '') }}"
-        placeholder="Фильтр…"></th>{% endfor %}
+        placeholder="Filter…"></th>{% endfor %}
     </tr></thead><tbody>
     {% for row in raw_rows %}<tr><td>{{ row.row_number }}</td>
       {% for column in columns %}<td>{{ row.payload.get(column, "") }}</td>{% endfor %}</tr>
@@ -84,13 +84,13 @@
     </form>
     <div class="toolbar" style="margin-top:14px">
       <span>{% if page > 1 %}<a class="button"
-        href="?page={{ page - 1 }}&page_size={{ page_size }}&{{ query_without_page }}">← Назад</a>
+        href="?page={{ page - 1 }}&page_size={{ page_size }}&{{ query_without_page }}">← Previous</a>
       {% endif %}</span>
       <span>{% if page < max_page %}<a class="button"
-        href="?page={{ page + 1 }}&page_size={{ page_size }}&{{ query_without_page }}">Вперёд →</a>
+        href="?page={{ page + 1 }}&page_size={{ page_size }}&{{ query_without_page }}">Next →</a>
       {% endif %}</span>
     </div>
-  {% else %}<span class="muted">В последнем snapshot нет строк.</span>{% endif %}
+  {% else %}<span class="muted">The latest snapshot contains no rows.</span>{% endif %}
   </div>
 </main></body>
 </html>

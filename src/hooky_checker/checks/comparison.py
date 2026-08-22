@@ -27,7 +27,7 @@ def find_missing_dates(previous: pd.DataFrame, current: pd.DataFrame) -> list[Ch
             dimensions={"data_date": missing.isoformat()},
             expected=Decimal(1),
             actual=Decimal(0),
-            title=f"Полностью пропала дата {missing.isoformat()}",
+            title=f"Date {missing.isoformat()} is completely missing",
         )
         for missing in sorted(previous_dates - current_dates)
     ]
@@ -71,7 +71,7 @@ def find_metric_drops(
                     dimensions=dimensions,
                     expected=expected,
                     actual=actual,
-                    title=f"{metric}: снижение на {relative_drop:.1%}",
+                    title=f"{metric}: decreased by {relative_drop:.1%}",
                     evidence={"absolute_drop": str(drop), "relative_drop": str(relative_drop)},
                 )
             )

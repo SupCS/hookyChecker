@@ -11,7 +11,7 @@ _SHEET_ID_RE = re.compile(r"/spreadsheets/d/([a-zA-Z0-9-_]+)")
 def extract_sheet_id(sheet_url: str) -> str:
     match = _SHEET_ID_RE.search(sheet_url)
     if not match:
-        raise ValueError("Не удалось извлечь Google Sheet ID из ссылки")
+        raise ValueError("Could not extract the Google Sheet ID from the URL")
     return match.group(1)
 
 

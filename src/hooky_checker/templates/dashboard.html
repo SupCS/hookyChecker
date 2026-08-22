@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -35,27 +35,27 @@
 <body><main>
   <h1>Hooky Checker</h1>
   <p>{% if current_user %}{{ current_user.display_name }} · {{ current_user.role.value }}
-    {% if current_user.role.value == 'admin' %} · <a href="/admin/users">Пользователи</a>{% endif %}
-    · <a href="/account/password">Сменить пароль</a>
-    <form action="/logout" method="post" style="display:inline"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button>Выйти</button></form>
-    {% else %}<a href="/login">Войти</a>{% endif %}</p>
-  <div class="muted">Мониторинг качества данных из Google Sheets</div>
+    {% if current_user.role.value == 'admin' %} · <a href="/admin/users">Users</a>{% endif %}
+    · <a href="/account/password">Change password</a>
+    <form action="/logout" method="post" style="display:inline"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button>Sign out</button></form>
+    {% else %}<a href="/login">Sign in</a>{% endif %}</p>
+  <div class="muted">Google Sheets data quality monitoring</div>
 
   <section class="metrics">
-    <div class="card metric"><span class="muted">Активные алерты</span>
+    <div class="card metric"><span class="muted">Active alerts</span>
       <strong>{{ active_count }}</strong></div>
-    <div class="card metric"><span class="muted">Критические</span>
+    <div class="card metric"><span class="muted">Critical</span>
       <strong>{{ critical_count }}</strong></div>
-    <div class="card metric"><span class="muted">Последний snapshot</span>
+    <div class="card metric"><span class="muted">Latest snapshot</span>
       <strong>{{ latest_run.snapshot_date if latest_run else "—" }}</strong></div>
   </section>
 
-  <h2>Источники</h2>
+  <h2>Sources</h2>
   <div class="card">
     {% if current_user and current_user.role.value == 'admin' %}<form method="post" action="/sources"><input type="hidden" name="csrf" value="{{ csrf_token }}">
-      <label>Название проекта<input name="name" required placeholder="Hooky Entertainment"></label>
-      <label>Вкладка<input name="worksheet_name" required value="All_Data"></label>
-      <button type="submit">Добавить</button>
+      <label>Project name<input name="name" required placeholder="Hooky Entertainment"></label>
+      <label>Worksheet<input name="worksheet_name" required value="All_Data"></label>
+      <button type="submit">Add</button>
     </form>{% endif %}
     {% if source_error %}<p class="error">{{ source_error }}</p>{% endif %}
   </div>
@@ -63,55 +63,55 @@
   {% if new_source %}
   <div class="card success" style="margin-top:16px">
     <strong>
-      {% if token_rotated %}Токен источника {{ new_source.name }} обновлён
-      {% else %}Источник {{ new_source.name }} создан{% endif %}
+      {% if token_rotated %}Token for {{ new_source.name }} was rotated
+      {% else %}Source {{ new_source.name }} was created{% endif %}
     </strong>
-    <p>Скопируйте значения сейчас: токен повторно не показывается.</p>
+    <p>Copy these values now. The token will not be shown again.</p>
     <pre>API_URL = '{{ public_api_url }}/api/v1/snapshots'
 INGEST_TOKEN = '{{ new_token }}'
 WORKSHEET_NAME = '{{ new_source.worksheet_name }}'</pre>
-    <p class="muted">Вставьте их в apps_script/Code.gs.</p>
+    <p class="muted">Paste them into apps_script/Code.gs.</p>
   </div>
   {% endif %}
 
   {% if sources %}
   <div class="card" style="margin-top:16px">
-    <table><thead><tr><th>Проект</th><th>Вкладка</th><th>Статус</th><th></th></tr></thead><tbody>
+    <table><thead><tr><th>Project</th><th>Worksheet</th><th>Status</th><th></th></tr></thead><tbody>
     {% for source in sources %}<tr><td><a href="/sources/{{ source.id }}">{{ source.name }}</a></td>
-      <td>{{ source.worksheet_name }}</td><td>{{ "Активен" if source.enabled else "Выключен" }}</td>
+      <td>{{ source.worksheet_name }}</td><td>{{ "Active" if source.enabled else "Disabled" }}</td>
       <td>{% if current_user and current_user.role.value == 'admin' %}<form method="post" action="/sources/{{ source.id }}/rotate-token"
-        onsubmit="return confirm('Старый токен перестанет работать. Продолжить?')"><input type="hidden" name="csrf" value="{{ csrf_token }}">
-        <button type="submit">Новый токен</button></form>{% endif %}</td></tr>
+        onsubmit="return confirm('The old token will stop working. Continue?')"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <button type="submit">Rotate token</button></form>{% endif %}</td></tr>
     {% endfor %}
     </tbody></table>
   </div>
   {% endif %}
 
-  <h2>Алерты</h2>
+  <h2>Alerts</h2>
   <div class="card">
   {% if alert_rows %}
-    <table><thead><tr><th>Статус</th><th>Проверка</th><th>Дата</th><th>Канал</th>
-      <th>Кампания</th><th>Было</th><th>Стало</th><th>Описание</th></tr></thead>
+    <table><thead><tr><th>Status</th><th>Check</th><th>Date</th><th>Channel</th>
+      <th>Campaign</th><th>Previous</th><th>Current</th><th>Description</th></tr></thead>
     <tbody>{% for item in alert_rows %}{% set alert = item.alert %}{% set event = item.event %}
       <tr><td>{{ alert.status.value }}</td>
       <td><a href="/alerts/{{ alert.id }}">{{ alert.check_type }}</a></td>
       <td>{{ alert.dimensions.get("data_date", "—") }}</td>
       <td>{{ alert.dimensions.get("Channel_Short_Name", alert.dimensions.get("Channel", "—")) }}</td>
       <td>{{ alert.dimensions.get("Campaign_Short_Name", alert.dimensions.get("Campaign", "—")) }}</td>
-      <td>{% if alert.check_type == "data_regression" %}см. детали{% else %}
+      <td>{% if alert.check_type == "data_regression" %}see details{% else %}
         {{ event.expected if event and event.expected is not none else "—" }}{% endif %}</td>
-      <td>{% if alert.check_type == "data_regression" %}см. детали{% else %}
+      <td>{% if alert.check_type == "data_regression" %}see details{% else %}
         {{ event.actual if event and event.actual is not none else "—" }}{% endif %}</td>
       <td><a href="/alerts/{{ alert.id }}">{{ alert.title }} →</a></td></tr>
     {% endfor %}</tbody></table>
-  {% else %}<span class="muted">Алертов пока нет.</span>{% endif %}
+  {% else %}<span class="muted">No alerts yet.</span>{% endif %}
   </div>
 
   {% if historical_alert_rows %}
-  <details style="margin-top:24px"><summary class="muted">История восстановленных алертов
+  <details style="margin-top:24px"><summary class="muted">Resolved alert history
     ({{ historical_alert_rows|length }})</summary>
-    <div class="card"><table><thead><tr><th>Статус</th><th>Проверка</th>
-      <th>Дата</th><th>Описание</th></tr></thead><tbody>
+    <div class="card"><table><thead><tr><th>Status</th><th>Check</th>
+      <th>Date</th><th>Description</th></tr></thead><tbody>
     {% for item in historical_alert_rows %}<tr><td>{{ item.alert.status.value }}</td>
       <td><a href="/alerts/{{ item.alert.id }}">{{ item.alert.check_type }}</a></td>
       <td>{{ item.alert.dimensions.get("data_date", "—") }}</td>

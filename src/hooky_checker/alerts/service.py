@@ -127,7 +127,7 @@ def _results(previous: pd.DataFrame, current: pd.DataFrame) -> list[CheckResult]
                 dimensions=changes[0].dimensions,
                 expected=Decimal(len(changes)),
                 actual=Decimal(0),
-                title=f"Снижение метрик: {', '.join(metrics)}",
+                title=f"Metric decrease: {', '.join(metrics)}",
                 evidence={
                     "changes": [
                         {

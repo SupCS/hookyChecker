@@ -16,7 +16,7 @@
 - [x] Создать Python project (`src/`, `tests/`, `pyproject.toml`).
 - [x] Добавить settings и `.env.example` без секретов.
 - [ ] Поднять PostgreSQL локально и на Railway.
-- [ ] Настроить SQLAlchemy и Alembic.
+- [x] Настроить SQLAlchemy и Alembic с безопасным upgrade существующей БД.
 - [ ] Добавить structured logging.
 - [x] Добавить таблицу `ingestion_run`.
 - [ ] Добавить CI: lint, type check, tests.
@@ -62,6 +62,13 @@
 
 ## Phase 5 — Web UI
 
+- [x] Добавить публичный viewer-доступ и локальную авторизацию editor/admin.
+- [x] Добавить админский поиск пользователей и управление ролями viewer/editor.
+- [x] Добавить сохраняемую конфигурацию KPI и табличных виджетов по источнику.
+- [x] Добавить CSRF, rate limit входа, смену/сброс пароля и отзыв сессий.
+- [x] Добавить историю/восстановление версий и порядок виджетов.
+- [x] Добавить явное форматирование виджетов: auto/currency/percent/number.
+
 - [x] Dashboard выбранного `SUCCESS` snapshot с live-фильтрами campaign/channel/location/date
       и performance-виджетами по channel/location/month.
 - [x] Добавить мультивыбор месяцев и сравнение периодов в performance dashboard.
@@ -82,7 +89,7 @@
 - [ ] Развернуть web service, PostgreSQL и daily cron service.
 - [ ] Настроить health/readiness checks.
 - [ ] Добавить advisory lock против параллельных ingestion runs.
-- [ ] Настроить retention raw snapshots и очистку.
+- [x] Хранить payload последних 14 SUCCESS snapshots на источник и очищать старые.
 - [ ] Настроить резервное копирование PostgreSQL.
 - [ ] Добавить уведомления о падении самого pipeline.
 - [ ] Провести shadow run минимум 7 дней и откалибровать thresholds.

@@ -9,7 +9,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from hooky_checker.alerts import evaluate_snapshot
+from hooky_checker.config import get_settings
 from hooky_checker.db.models import IngestionRun, RawSnapshot, RunStatus
+from hooky_checker.pipeline.retention import enforce_snapshot_retention
 
 DATE_COLUMN_CANDIDATES = ("Date", "date", "data_date")
 
@@ -102,4 +104,9 @@ def publish_push_snapshot(
     run.finished_at = datetime.now(UTC)
     session.flush()
     evaluate_snapshot(session, run)
+    enforce_snapshot_retention(
+        session,
+        retain=get_settings().snapshot_retention_count,
+        source_id=source_id,
+    )
     return run, True

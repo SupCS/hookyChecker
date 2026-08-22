@@ -34,6 +34,11 @@
 </head>
 <body><main>
   <h1>Hooky Checker</h1>
+  <p>{% if current_user %}{{ current_user.display_name }} · {{ current_user.role.value }}
+    {% if current_user.role.value == 'admin' %} · <a href="/admin/users">Пользователи</a>{% endif %}
+    · <a href="/account/password">Сменить пароль</a>
+    <form action="/logout" method="post" style="display:inline"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button>Выйти</button></form>
+    {% else %}<a href="/login">Войти</a>{% endif %}</p>
   <div class="muted">Мониторинг качества данных из Google Sheets</div>
 
   <section class="metrics">
@@ -47,11 +52,11 @@
 
   <h2>Источники</h2>
   <div class="card">
-    <form method="post" action="/sources">
+    {% if current_user and current_user.role.value == 'admin' %}<form method="post" action="/sources"><input type="hidden" name="csrf" value="{{ csrf_token }}">
       <label>Название проекта<input name="name" required placeholder="Hooky Entertainment"></label>
       <label>Вкладка<input name="worksheet_name" required value="All_Data"></label>
       <button type="submit">Добавить</button>
-    </form>
+    </form>{% endif %}
     {% if source_error %}<p class="error">{{ source_error }}</p>{% endif %}
   </div>
 
@@ -74,9 +79,9 @@ WORKSHEET_NAME = '{{ new_source.worksheet_name }}'</pre>
     <table><thead><tr><th>Проект</th><th>Вкладка</th><th>Статус</th><th></th></tr></thead><tbody>
     {% for source in sources %}<tr><td><a href="/sources/{{ source.id }}">{{ source.name }}</a></td>
       <td>{{ source.worksheet_name }}</td><td>{{ "Активен" if source.enabled else "Выключен" }}</td>
-      <td><form method="post" action="/sources/{{ source.id }}/rotate-token"
-        onsubmit="return confirm('Старый токен перестанет работать. Продолжить?')">
-        <button type="submit">Новый токен</button></form></td></tr>
+      <td>{% if current_user and current_user.role.value == 'admin' %}<form method="post" action="/sources/{{ source.id }}/rotate-token"
+        onsubmit="return confirm('Старый токен перестанет работать. Продолжить?')"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <button type="submit">Новый токен</button></form>{% endif %}</td></tr>
     {% endfor %}
     </tbody></table>
   </div>

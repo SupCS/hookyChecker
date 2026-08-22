@@ -67,11 +67,12 @@
     {% endif %}{% endfor %}
   </div>
 
-  {% if alert.status.value in ["OPEN", "ONGOING", "RECOVERED"] %}
+  {% if current_user and current_user.role.value in ["editor", "admin"] and alert.status.value in ["OPEN", "ONGOING", "RECOVERED"] %}
   <div class="card">
     <strong>Изменение ожидаемое?</strong>
     <p class="muted">Закройте incident вручную и зафиксируйте причину принятия данных.</p>
     <form method="post" action="/alerts/{{ alert.id }}/resolve">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
       <label>Комментарий<input name="reason" required
         placeholder="Например: корректировка подтверждена клиентом"></label>
       <label>Кто закрыл<input name="resolved_by" value="Manual"></label>

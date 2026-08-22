@@ -119,6 +119,12 @@ baseline последнего известного корректного зна
 - Для raw snapshots задаётся retention; агрегаты и alert history хранятся
   дольше.
 
+По умолчанию сохраняются payload последних 14 `SUCCESS` snapshots на каждый
+источник (`SNAPSHOT_RETENTION_COUNT`). После публикации нового snapshot старые
+raw/aggregate payload удаляются, а лёгкие `ingestion_run` и `alert_event`
+остаются для audit trail. Разовая очистка: `hooky-checker cleanup-snapshots
+--retain 14 --vacuum`.
+
 ## Подключение приватной Google Sheet
 
 Для MVP используется push-модель без Google Cloud и service account:
@@ -150,12 +156,36 @@ baseline последнего известного корректного зна
 ## Локальный запуск
 
 ```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 python -m pip install -e ".[dev]"
-hooky-checker init-db
-hooky-checker serve
+Copy-Item .env.example .env
 ```
 
+Перед первым запуском откройте `.env` и замените как минимум:
+
+```dotenv
+ADMIN_EMAIL=you@example.com
+ADMIN_PASSWORD=use-a-long-random-local-password
+```
+
+Затем создайте таблицы и запустите приложение:
+
+```powershell
+hooky-checker init-db  # применяет Alembic migrations до head
+hooky-checker serve --reload
+```
+
+Для создания первого администратора задайте `ADMIN_EMAIL` и `ADMIN_PASSWORD`
+до запуска приложения. Неавторизованные посетители имеют публичный доступ viewer.
+Администратор создаёт аккаунты и назначает роли viewer/editor на странице
+`/admin/users`, отключает доступ и сбрасывает пароль; editor может сохранять
+конфигурацию виджетов дашборда и восстанавливать предыдущие версии.
+
 Команда поднимает UI и ingestion API вместе на `http://localhost:8000`.
+Проверка доступности: `Invoke-RestMethod http://localhost:8000/health` должна
+вернуть `status: ok`. Вход находится на `http://localhost:8000/login`, тесты
+запускаются командой `python -m pytest -q`, lint — `python -m ruff check src tests`.
 
 По умолчанию используется локальная SQLite база `hooky_checker.db`. Для
 PostgreSQL достаточно задать `DATABASE_URL`.
@@ -164,5 +194,7 @@ PostgreSQL достаточно задать `DATABASE_URL`.
 
 Репозиторий содержит `Dockerfile` и `railway.toml`. Railway автоматически
 запускает один web service, слушает переданный `PORT` и проверяет `/health`.
-Приложению требуется PostgreSQL и переменная `DATABASE_URL`; публичный адрес
+Приложению требуется PostgreSQL. В Variables web-сервиса добавьте reference variable
+`DATABASE_URL=${{Postgres.DATABASE_URL}}` (имя `Postgres` должно совпадать с именем
+вашего database service), а также секреты `ADMIN_EMAIL` и `ADMIN_PASSWORD`. Публичный адрес
 автоматически определяется через `RAILWAY_PUBLIC_DOMAIN`.

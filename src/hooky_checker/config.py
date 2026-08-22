@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     business_timezone: str = "Asia/Tbilisi"
     drop_relative_threshold: float = Field(default=0.20, ge=0, le=1)
     drop_absolute_threshold: float = Field(default=10, ge=0)
+    admin_email: str | None = None
+    admin_password: str | None = None
+    auth_session_days: int = Field(default=30, ge=1, le=365)
+    login_max_attempts: int = Field(default=5, ge=1, le=100)
+    login_window_minutes: int = Field(default=15, ge=1, le=1440)
+    snapshot_retention_count: int = Field(default=14, ge=2, le=365)
 
     @property
     def effective_public_api_url(self) -> str:

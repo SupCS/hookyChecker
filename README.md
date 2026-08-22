@@ -112,14 +112,15 @@ baseline последнего известного корректного зна
 
 - Ingest-токены хранятся в БД только в виде SHA-256 hash.
 - Snapshot публикуется только после успешного завершения всей загрузки.
-- Сравниваются последние два `SUCCESS` запуска, а не календарные даты.
-- Повторный запуск за одну `snapshot_date` должен быть идемпотентным.
+- Новый snapshot сравнивается с последним сохранённым `SUCCESS` snapshot более ранней даты.
+- Повтор одинакового payload за одну `snapshot_date` идемпотентен; изменённый payload
+  атомарно заменяет сохранённые raw/aggregate данные этого дня.
 - В БД хранятся `source_updated_at`, время запуска, статус, число строк и
   checksum.
 - Для raw snapshots задаётся retention; агрегаты и alert history хранятся
   дольше.
 
-По умолчанию сохраняются payload последних 14 `SUCCESS` snapshots на каждый
+По умолчанию сохраняются payload последних 14 ежедневных `SUCCESS` snapshots на каждый
 источник (`SNAPSHOT_RETENTION_COUNT`). После публикации нового snapshot старые
 raw/aggregate payload удаляются, а лёгкие `ingestion_run` и `alert_event`
 остаются для audit trail. Разовая очистка: `hooky-checker cleanup-snapshots

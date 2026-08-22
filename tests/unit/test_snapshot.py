@@ -9,6 +9,7 @@ from hooky_checker.db.models import (
     AlertStatus,
     Base,
     DataSource,
+    IngestionRun,
     RawSnapshot,
 )
 from hooky_checker.pipeline.snapshot import dataframe_from_values, publish_push_snapshot
@@ -41,6 +42,37 @@ def test_snapshot_is_idempotent_for_same_payload() -> None:
         assert session.query(RawSnapshot).count() == 1
 
 
+def test_changed_same_day_snapshot_replaces_previous_payload() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        source = DataSource(name="Daily replacement", worksheet_name="All_Data")
+        session.add(source)
+        session.flush()
+
+        first, _ = publish_push_snapshot(
+            session,
+            source.id,
+            [["Date", "Revenue"], ["2026-07-01", 12]],
+            date(2026, 7, 9),
+        )
+        second, created = publish_push_snapshot(
+            session,
+            source.id,
+            [["Date", "Revenue"], ["2026-07-01", 15]],
+            date(2026, 7, 9),
+        )
+        session.flush()
+
+        assert created is True
+        assert first.id != second.id
+        assert session.scalar(select(RawSnapshot).where(RawSnapshot.run_id == first.id)) is None
+        latest_row = session.scalar(select(RawSnapshot).where(RawSnapshot.run_id == second.id))
+        assert latest_row is not None
+        assert latest_row.payload["Revenue"] == 15
+        assert len(list(session.scalars(select(IngestionRun)))) == 2
+
+
 def test_missing_date_creates_alert_and_normal_data_starts_recovery() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
@@ -57,7 +89,7 @@ def test_missing_date_creates_alert_and_normal_data_starts_recovery() -> None:
             ["Date", "Channel_Short_Name", "Conversions", "Revenue"],
             ["2026-07-02", "Search", 80, 800],
         ]
-        publish_push_snapshot(session, source.id, normal, date(2026, 7, 9))
+        publish_push_snapshot(session, source.id, normal, date(2026, 7, 8))
         publish_push_snapshot(session, source.id, broken, date(2026, 7, 9))
         alert = session.scalar(select(Alert).where(Alert.check_type == "missing_date"))
         assert alert is not None

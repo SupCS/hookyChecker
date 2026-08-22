@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -41,6 +42,9 @@ def retention_candidates(
                 .where(
                     IngestionRun.source_id == current_source_id,
                     IngestionRun.status == RunStatus.SUCCESS,
+                    select(RawSnapshot.id)
+                    .where(RawSnapshot.run_id == IngestionRun.id)
+                    .exists(),
                 )
                 .order_by(
                     IngestionRun.finished_at.desc(),
@@ -63,6 +67,29 @@ def prune_snapshot_payload(session: Session, run_id: str) -> PruneResult:
         raw_rows=raw_result.rowcount or 0,
         aggregate_rows=aggregate_result.rowcount or 0,
     )
+
+
+def replace_same_day_snapshot_payload(
+    session: Session,
+    source_id: str,
+    snapshot_date: date,
+    keep_run_id: str,
+) -> list[PruneResult]:
+    """Keep audit runs, but retain payload only for the latest successful daily snapshot."""
+    superseded_run_ids = list(
+        session.scalars(
+            select(IngestionRun.id).where(
+                IngestionRun.source_id == source_id,
+                IngestionRun.snapshot_date == snapshot_date,
+                IngestionRun.status == RunStatus.SUCCESS,
+                IngestionRun.id != keep_run_id,
+                select(RawSnapshot.id)
+                .where(RawSnapshot.run_id == IngestionRun.id)
+                .exists(),
+            )
+        )
+    )
+    return [prune_snapshot_payload(session, run_id) for run_id in superseded_run_ids]
 
 
 def enforce_snapshot_retention(

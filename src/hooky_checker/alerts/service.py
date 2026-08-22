@@ -164,6 +164,10 @@ def evaluate_snapshot(session: Session, run: IngestionRun) -> int:
             IngestionRun.source_id == run.source_id,
             IngestionRun.status == RunStatus.SUCCESS,
             IngestionRun.id != run.id,
+            IngestionRun.snapshot_date < run.snapshot_date,
+            select(RawSnapshot.id)
+            .where(RawSnapshot.run_id == IngestionRun.id)
+            .exists(),
         )
         .order_by(IngestionRun.finished_at.desc())
         .limit(1)

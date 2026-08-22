@@ -543,7 +543,12 @@ def source_detail(
     runs = list(
         session.scalars(
             select(IngestionRun)
-            .where(IngestionRun.source_id == source.id)
+            .where(
+                IngestionRun.source_id == source.id,
+                select(RawSnapshot.id)
+                .where(RawSnapshot.run_id == IngestionRun.id)
+                .exists(),
+            )
             .order_by(IngestionRun.started_at.desc())
             .limit(30)
         )
@@ -867,6 +872,9 @@ def alert_detail(
                 IngestionRun.source_id == current_run.source_id,
                 IngestionRun.status == RunStatus.SUCCESS,
                 IngestionRun.finished_at < current_run.finished_at,
+                select(RawSnapshot.id)
+                .where(RawSnapshot.run_id == IngestionRun.id)
+                .exists(),
             )
             .order_by(IngestionRun.finished_at.desc())
             .limit(1)

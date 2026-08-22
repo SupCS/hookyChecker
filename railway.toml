@@ -2,7 +2,7 @@
 builder = "DOCKERFILE"
 
 [deploy]
-preDeployCommand = ["hooky-checker cleanup-snapshots --retain 14 --vacuum"]
+preDeployCommand = ["hooky-checker init-db"]
 healthcheckPath = "/health"
 healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"
